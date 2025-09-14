@@ -17,6 +17,9 @@ def _hash_ip(ip: Optional[str], salt: str) -> Optional[str]:
 
 
 def log_event(action: str, org_id: Optional[str], actor_id: Optional[str], actor_role: Optional[str], target_type: Optional[str], target_id: Optional[str], metadata: Optional[dict[str, Any]], ip: Optional[str], ip_salt: str) -> None:
+    # org_id is NOT NULL in schema; skip logging if unknown
+    if not org_id:
+        return
     ip_hash = _hash_ip(ip, ip_salt)
     # Direct SQL to existing audit_log table to avoid defining ORM
     with session_scope() as session:

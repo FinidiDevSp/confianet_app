@@ -35,6 +35,9 @@ axios.interceptors.response.use(
       case 404:
         message = detail || "Not found";
         break;
+      case 429:
+        message = detail || "Too many attempts";
+        break;
       case 500:
         message = detail || "Internal Server Error";
         break;

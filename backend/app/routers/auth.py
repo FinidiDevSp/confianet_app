@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ..core.security import decode_jwt
@@ -50,12 +51,26 @@ async def login(request: Request, response: Response) -> TokenResponse:
     # rate limit by email+ip
     client_ip = request.client.host if request.client else None
     key = f"{payload.email}|{client_ip}"
-    ok, msg = rate_limiter.check_and_increment(key)
+    ok, remaining, wait_seconds = rate_limiter.check_and_increment(key)
     if not ok:
+        # org_id unknown; skip audit if org_id is None (enforced in log_event)
         log_event("login_rate_limited", org_id=None, actor_id=None, actor_role=None, target_type=None, target_id=None, metadata={"email": payload.email}, ip=client_ip, ip_salt=settings.ip_hash_salt)
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=msg or "Too many attempts")
+        detail = f"Demasiados intentos. Intenta de nuevo en {wait_seconds} segundos"
+        return JSONResponse(status_code=status.HTTP_429_TOO_MANY_REQUESTS, content={"detail": detail, "retry_after": wait_seconds, "remaining": 0}, headers={"Retry-After": str(wait_seconds)})
 
-    user: UserOut = authenticate_user(payload.email, payload.password)
+    try:
+        user: UserOut = authenticate_user(payload.email, payload.password)
+    except HTTPException as exc:
+        if exc.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
+            # If user exists, log failed attempt with org_id
+            from ..repositories.users import users_repo
+            existing = users_repo.get_by_email(payload.email)
+            org_for_log = getattr(existing, "org_id", None) if existing else None
+            log_event("login_failed", org_id=org_for_log, actor_id=None, actor_role=None, target_type=None, target_id=None, metadata={"email": payload.email}, ip=client_ip, ip_salt=settings.ip_hash_salt)
+            # Include remaining attempts in message
+            detail = f"Credenciales inválidas. Intentos restantes: {remaining}"
+            raise HTTPException(status_code=exc.status_code, detail=detail)
+        raise
     access, refresh = issue_tokens(user)
     set_refresh_cookie(response, refresh)
     # audit: login success
