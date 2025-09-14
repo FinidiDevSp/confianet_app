@@ -1033,6 +1033,12 @@ const Navdata = () => {
             ],
         },
         {
+            id: "theme-customizer",
+            label: "Theme Customizer",
+            icon: "ri-palette-line",
+            link: "/settings/theme-customizer",
+        },
+        {
             id: "multilevel",
             label: "Multi Level",
             icon: "ri-share-line",

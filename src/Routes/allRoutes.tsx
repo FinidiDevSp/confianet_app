@@ -77,6 +77,8 @@ import ItemDetails from "../pages/NFTMarketplace/Itemdetails";
 import LiveAuction from "../pages/NFTMarketplace/LiveAuction";
 import Ranking from "../pages/NFTMarketplace/Ranking";
 import WalletConnect from "../pages/NFTMarketplace/WalletConnect";
+// Settings
+import ThemeCustomizerPage from "../pages/Settings/ThemeCustomizerPage";
 
 // Base Ui
 import UiAlerts from "../pages/BaseUi/UiAlerts/UiAlerts";
@@ -328,6 +330,9 @@ const authProtectedRoutes = [
   { path: "/apps-nft-auction", component: <LiveAuction /> },
   { path: "/apps-nft-ranking", component: <Ranking /> },
   { path: "/apps-nft-wallet", component: <WalletConnect /> },
+
+  // Settings
+  { path: "/settings/theme-customizer", component: <ThemeCustomizerPage /> },
 
   //charts
   { path: "/charts-apex-line", component: <LineCharts /> },
