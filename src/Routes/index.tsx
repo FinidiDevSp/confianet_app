@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 
 //Layouts
 import NonAuthLayout from "../Layouts/NonAuthLayout";
@@ -8,8 +8,11 @@ import VerticalLayout from "../Layouts/index";
 //routes
 import { authProtectedRoutes, publicRoutes } from "./allRoutes";
 import  AuthProtected  from './AuthProtected';
+import { useProfile } from "../Components/Hooks/UserHooks";
 
 const Index = () => {
+    const { token } = useProfile();
+    const defaultTarget = token ? "/dashboard" : "/login";
     return (
         <React.Fragment>
             <Routes>
@@ -41,6 +44,11 @@ const Index = () => {
                         />
                     ))}
                 </Route>
+
+                {/* Default route: redirect to login if not authenticated */}
+                <Route path="/" element={<Navigate to={defaultTarget} replace />} />
+                {/* Fallback: any unknown route goes to the default as well */}
+                <Route path="*" element={<Navigate to={defaultTarget} replace />} />
             </Routes>
         </React.Fragment>
     );
