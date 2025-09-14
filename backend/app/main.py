@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.settings import settings
-from .routers import auth
+from .routers import auth, health
 
 app = FastAPI(title="Confianet API")
 
@@ -10,6 +10,7 @@ app = FastAPI(title="Confianet API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -23,3 +24,4 @@ def read_root() -> dict[str, str]:
 
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(health.router, prefix="/api", tags=["health"])

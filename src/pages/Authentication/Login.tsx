@@ -116,7 +116,11 @@ const Login = (props: any) => {
                                             <h5 className="text-primary">Welcome Back !</h5>
                                             <p className="text-muted">Sign in to continue to Velzon.</p>
                                         </div>
-                                        {error && error ? (<Alert color="danger"> {error} </Alert>) : null}
+                                        {error && error ? (
+                                            <Alert color="danger" isOpen transition={{ timeout: 200 }}>
+                                                {String(error)}
+                                            </Alert>
+                                        ) : null}
                                         <div className="p-2 mt-4">
                                             <Form
                                                 onSubmit={(e) => {

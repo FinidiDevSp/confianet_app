@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://localhost",
     ]
+    cors_origin_regex: Optional[str] = r"^https?://(localhost|127\.0\.0\.1)(:\\d+)?$"
     cookie_secure: bool = False  # True in production
     cookie_samesite: str = "lax"  # 'lax' | 'strict' | 'none'
     database_url: str = "mysql+pymysql://user:password@localhost:3306/canal_denuncias"
