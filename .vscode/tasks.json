@@ -55,7 +55,7 @@
       "args": [
         "-NoProfile",
         "-Command",
-        "$port=3000; $conns=Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue; if ($conns) { $pids = $conns | Select-Object -ExpandProperty OwningProcess | Sort-Object -Unique; foreach ($pid in $pids) { try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch {} } }"
+        "$port=3000; $conns=Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue; if ($conns) { $procIds = $conns | Select-Object -ExpandProperty OwningProcess | Sort-Object -Unique; foreach ($procId in $procIds) { try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {} } }"
       ],
       "problemMatcher": []
     }
