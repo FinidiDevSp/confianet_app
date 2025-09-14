@@ -1,11 +1,25 @@
 {
-  "$schema": "https://json.schemastore.org/tasks.json",
+  "$schema": "vscode://schemas/tasks",
   "version": "2.0.0",
   "tasks": [
+    {
+      "label": "setup: npm deps",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "$ErrorActionPreference='Stop'; if (-not (Test-Path 'node_modules/.bin/react-scripts.cmd')) { if (Test-Path 'package-lock.json') { Write-Host 'Installing npm deps with npm ci...'; npm ci } else { Write-Host 'Installing npm deps with npm install...'; npm install } } else { Write-Host 'Dependencies present; skipping install.' }"
+      ],
+      "problemMatcher": []
+    },
     {
       "label": "npm: start",
       "type": "npm",
       "script": "start",
+      "dependsOn": [
+        "setup: npm deps"
+      ],
       "isBackground": true,
       "problemMatcher": {
         "owner": "custom",
@@ -47,4 +61,3 @@
     }
   ]
 }
-

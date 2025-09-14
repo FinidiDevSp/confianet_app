@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json.schemastore.org/launch.json",
+  "$schema": "vscode://schemas/launch",
   "version": "0.2.0",
   "configurations": [
     {
@@ -14,7 +14,7 @@
     },
     {
       "name": "Backend: FastAPI (Uvicorn)",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "module": "uvicorn",
       "args": [
