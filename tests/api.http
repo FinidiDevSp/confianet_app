@@ -92,6 +92,14 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/audit/stats
 Authorization: Bearer {{accessToken}}
 
+### Audit: listar logs filtrando por acción (login_success)
+GET {{baseUrl}}/api/audit/logs?limit=10&action=login_success
+Authorization: Bearer {{accessToken}}
+
+### Audit: listar logs filtrando por rol (admin)
+GET {{baseUrl}}/api/audit/logs?limit=10&role=admin
+Authorization: Bearer {{accessToken}}
+
 ### Rate limit: 6 intentos fallidos (espera 429)
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json

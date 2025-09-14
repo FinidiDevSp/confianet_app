@@ -16,18 +16,25 @@ router = APIRouter()
 def list_logs(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    me: MeResponse = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor)),
+    action: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+    me: Any = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor)),
 ) -> list[dict[str, Any]]:
-    sql = text(
-        """
-        SELECT id, org_id, actor_id, actor_role, action, target_type, target_id, ip_hash, created_at
-        FROM audit_log
-        ORDER BY created_at DESC
-        LIMIT :limit OFFSET :offset
-        """
+    base = (
+        "SELECT id, org_id, actor_id, actor_role, action, target_type, target_id, ip_hash, created_at "
+        "FROM audit_log WHERE 1=1"
     )
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
+    if action:
+        base += " AND action = :action"
+        params["action"] = action
+    if role:
+        base += " AND actor_role = :role"
+        params["role"] = role
+    base += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    sql = text(base)
     with engine.connect() as conn:
-        rows = conn.execute(sql, {"limit": limit, "offset": offset}).mappings().all()
+        rows = conn.execute(sql, params).mappings().all()
     return [dict(r) for r in rows]
 
 
@@ -45,4 +52,3 @@ def stats(
     with engine.connect() as conn:
         rows = conn.execute(sql).all()
     return {action: int(total) for action, total in rows}
-
