@@ -25,7 +25,7 @@ class TokenResponse(BaseModel):
 
 
 class User(BaseModel):
-    id: int
+    id: str
     email: EmailStr
     full_name: str
     role: Role
@@ -34,7 +34,7 @@ class User(BaseModel):
 
 
 class UserOut(BaseModel):
-    id: int
+    id: str
     email: EmailStr
     full_name: str
     role: Role
@@ -46,4 +46,3 @@ class MeResponse(UserOut):
 
 
 TokenResponse.model_rebuild()
-

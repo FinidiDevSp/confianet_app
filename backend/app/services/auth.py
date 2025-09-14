@@ -23,7 +23,7 @@ def authenticate_user(email: str, password: str) -> UserOut:
 
 
 def issue_tokens(user: UserOut) -> Tuple[str, str]:
-    access = create_jwt(subject=str(user.id), data={"role": user.role, "type": "access"}, ttl_seconds=settings.jwt_ttl_seconds)
+    access = create_jwt(subject=str(user.id), data={"role": str(user.role), "type": "access"}, ttl_seconds=settings.jwt_ttl_seconds)
     refresh = create_jwt(subject=str(user.id), data={"type": "refresh"}, ttl_seconds=settings.refresh_ttl_seconds)
     return access, refresh
 
