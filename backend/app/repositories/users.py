@@ -19,6 +19,7 @@ class UserRepository:
                 return None
             return User(
                 id=row.id,
+                org_id=row.org_id,
                 email=row.email or "",
                 full_name=row.name or "",
                 role=Role(row.role),
@@ -33,6 +34,7 @@ class UserRepository:
                 return None
             return UserOut(
                 id=row.id,
+                org_id=row.org_id,
                 email=row.email or "",
                 full_name=row.name or "",
                 role=Role(row.role),

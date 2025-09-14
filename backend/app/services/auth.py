@@ -27,7 +27,7 @@ def authenticate_user(email: str, password: str) -> UserOut:
         if password != settings.dev_default_password:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     # Return safe shape
-    return UserOut(id=user.id, email=user.email, full_name=user.full_name, role=user.role, status=user.status)
+    return UserOut(id=user.id, org_id=user.org_id, email=user.email, full_name=user.full_name, role=user.role, status=user.status)
 
 
 def issue_tokens(user: UserOut) -> Tuple[str, str]:

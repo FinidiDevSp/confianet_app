@@ -103,7 +103,7 @@ const Login = (props: any) => {
                                             <img src={logoLight} alt="" height="20" />
                                         </Link>
                                     </div>
-                                    <p className="mt-3 fs-15 fw-medium">Premium Admin & Dashboard Template</p>
+                                    <p className="mt-3 fs-15 fw-medium">Confianet • Acceso al panel</p>
                                 </div>
                             </Col>
                         </Row>
@@ -113,8 +113,8 @@ const Login = (props: any) => {
                                 <Card className="mt-4">
                                     <CardBody className="p-4">
                                         <div className="text-center mt-2">
-                                            <h5 className="text-primary">Welcome Back !</h5>
-                                            <p className="text-muted">Sign in to continue to Velzon.</p>
+                                            <h5 className="text-primary">Acceso al Panel</h5>
+                                            <p className="text-muted">Inicia sesión para continuar.</p>
                                         </div>
                                         {error && error ? (
                                             <Alert color="danger" isOpen transition={{ timeout: 200 }}>
@@ -131,7 +131,7 @@ const Login = (props: any) => {
                                                 action="#">
 
                                                 <div className="mb-3">
-                                                    <Label htmlFor="email" className="form-label">Email</Label>
+                                                    <Label htmlFor="email" className="form-label">Correo electrónico</Label>
                                                     <Input
                                                         name="email"
                                                         className="form-control"
@@ -151,9 +151,9 @@ const Login = (props: any) => {
 
                                                 <div className="mb-3">
                                                     <div className="float-end">
-                                                        <Link to="/forgot-password" className="text-muted">Forgot password?</Link>
+                                                        <Link to="/forgot-password" className="text-muted">¿Olvidaste tu contraseña?</Link>
                                                     </div>
-                                                    <Label className="form-label" htmlFor="password-input">Password</Label>
+                                                    <Label className="form-label" htmlFor="password-input">Contraseña</Label>
                                                     <div className="position-relative auth-pass-inputgroup mb-3">
                                                         <Input
                                                             name="password"
@@ -190,32 +190,7 @@ const Login = (props: any) => {
 
                                                 <div className="mt-4 text-center">
                                                     <div className="signin-other-title">
-                                                        <h5 className="fs-13 mb-4 title">Sign In with</h5>
-                                                    </div>
-                                                    <div>
-                                                        <Link
-                                                            to="#"
-                                                            className="btn btn-primary btn-icon me-1"
-                                                            onClick={e => {
-                                                                e.preventDefault();
-                                                                socialResponse("facebook");
-                                                            }}
-                                                        >
-                                                            <i className="ri-facebook-fill fs-16" />
-                                                        </Link>
-                                                        <Link
-                                                            to="#"
-                                                            className="btn btn-danger btn-icon me-1"
-                                                            onClick={e => {
-                                                                e.preventDefault();
-                                                                socialResponse("google");
-                                                            }}
-                                                        >
-                                                            <i className="ri-google-fill fs-16" />
-                                                        </Link>
-                                                        <Button color="dark" className="btn-icon"><i className="ri-github-fill fs-16"></i></Button>{" "}
-                                                        <Button color="info" className="btn-icon"><i className="ri-twitter-fill fs-16"></i></Button>
-                                                    </div>
+                                                        <h5 className="fs-13 mb-4 title">
                                                 </div>
                                             </Form>
                                         </div>
@@ -223,7 +198,7 @@ const Login = (props: any) => {
                                 </Card>
 
                                 <div className="mt-4 text-center">
-                                    <p className="mb-0">Don't have an account ? <Link to="/register" className="fw-semibold text-primary text-decoration-underline"> Signup </Link> </p>
+                                    <p className="mb-0">
                                 </div>
 
                             </Col>
@@ -236,3 +211,4 @@ const Login = (props: any) => {
 };
 
 export default withRouter(Login);
+

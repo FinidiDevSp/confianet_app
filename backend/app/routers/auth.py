@@ -59,7 +59,7 @@ async def login(request: Request, response: Response) -> TokenResponse:
     access, refresh = issue_tokens(user)
     set_refresh_cookie(response, refresh)
     # audit: login success
-    log_event("login_success", org_id=None, actor_id=str(user.id), actor_role=str(user.role), target_type=None, target_id=None, metadata=None, ip=client_ip, ip_salt=settings.ip_hash_salt)
+    log_event("login_success", org_id=user.org_id, actor_id=str(user.id), actor_role=user.role.value, target_type=None, target_id=None, metadata=None, ip=client_ip, ip_salt=settings.ip_hash_salt)
     # reset limiter after success
     rate_limiter.reset(key)
     return TokenResponse(access_token=access, user=user)
@@ -86,7 +86,7 @@ def refresh(request: Request, response: Response) -> TokenResponse:
     set_refresh_cookie(response, refresh_token)
     # audit: refresh success
     client_ip = request.client.host if request.client else None
-    log_event("token_refreshed", org_id=None, actor_id=str(me.id), actor_role=str(me.role), target_type=None, target_id=None, metadata=None, ip=client_ip, ip_salt=settings.ip_hash_salt)
+    log_event("token_refreshed", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type=None, target_id=None, metadata=None, ip=client_ip, ip_salt=settings.ip_hash_salt)
     return TokenResponse(access_token=access, user=me)
 
 
