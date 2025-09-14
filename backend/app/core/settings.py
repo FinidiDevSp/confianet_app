@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     cookie_samesite: str = "lax"  # 'lax' | 'strict' | 'none'
     database_url: str = "mysql+pymysql://user:password@localhost:3306/canal_denuncias"
     dev_default_password: str = "123456"  # Fallback if no password column exists (dev only)
+    ip_hash_salt: str = "dev-ip-salt-change-me"
 
 
 

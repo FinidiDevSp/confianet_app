@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
+from uuid import uuid4
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -31,9 +32,24 @@ def create_jwt(subject: str, data: dict[str, Any], ttl_seconds: int) -> str:
     return token
 
 
+def create_jwt_with_jti(subject: str, data: dict[str, Any], ttl_seconds: int) -> Tuple[str, str, int]:
+    """Create JWT adding a JTI and return (token, jti, exp)."""
+    now = datetime.now(tz=timezone.utc)
+    exp_ts = int((now + timedelta(seconds=ttl_seconds)).timestamp())
+    jti = str(uuid4())
+    payload: dict[str, Any] = {
+        "sub": subject,
+        "iat": int(now.timestamp()),
+        "exp": exp_ts,
+        "jti": jti,
+        **data,
+    }
+    token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return token, jti, exp_ts
+
+
 def decode_jwt(token: str) -> Optional[dict[str, Any]]:
     try:
         return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     except JWTError:
         return None
-

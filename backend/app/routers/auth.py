@@ -9,6 +9,9 @@ from ..core.security import decode_jwt
 from ..core.settings import settings
 from ..models.auth import LoginRequest, MeResponse, TokenResponse, UserOut
 from ..services.auth import authenticate_user, issue_tokens, me_from_user_id
+from ..repositories.refresh_tokens import is_refresh_token_valid, revoke_refresh_token
+from ..repositories.audit import log_event
+from ..core.rate_limit import rate_limiter
 
 router = APIRouter()
 
@@ -44,9 +47,21 @@ async def login(request: Request, response: Response) -> TokenResponse:
     except Exception:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request body")
 
+    # rate limit by email+ip
+    client_ip = request.client.host if request.client else None
+    key = f"{payload.email}|{client_ip}"
+    ok, msg = rate_limiter.check_and_increment(key)
+    if not ok:
+        log_event("login_rate_limited", org_id=None, actor_id=None, actor_role=None, target_type=None, target_id=None, metadata={"email": payload.email}, ip=client_ip, ip_salt=settings.ip_hash_salt)
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=msg or "Too many attempts")
+
     user: UserOut = authenticate_user(payload.email, payload.password)
     access, refresh = issue_tokens(user)
     set_refresh_cookie(response, refresh)
+    # audit: login success
+    log_event("login_success", org_id=None, actor_id=str(user.id), actor_role=str(user.role), target_type=None, target_id=None, metadata=None, ip=client_ip, ip_salt=settings.ip_hash_salt)
+    # reset limiter after success
+    rate_limiter.reset(key)
     return TokenResponse(access_token=access, user=user)
 
 
@@ -55,6 +70,9 @@ def refresh(request: Request, response: Response) -> TokenResponse:
     raw: Optional[str] = request.cookies.get("refresh_token")
     if not raw:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
+    # Verify the token is known and not revoked (rotation)
+    if not is_refresh_token_valid(raw):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
     data = decode_jwt(raw)
     if not data or data.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
@@ -62,14 +80,22 @@ def refresh(request: Request, response: Response) -> TokenResponse:
     me = me_from_user_id(user_id)
     if not me:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    # rotate: revoke current and issue a new refresh
+    revoke_refresh_token(raw)
     access, refresh_token = issue_tokens(me)
     set_refresh_cookie(response, refresh_token)
+    # audit: refresh success
+    client_ip = request.client.host if request.client else None
+    log_event("token_refreshed", org_id=None, actor_id=str(me.id), actor_role=str(me.role), target_type=None, target_id=None, metadata=None, ip=client_ip, ip_salt=settings.ip_hash_salt)
     return TokenResponse(access_token=access, user=me)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(response: Response) -> Response:
+def logout(response: Response, request: Request) -> Response:
     response.delete_cookie(key="refresh_token", path="/api/auth")
+    # audit: logout
+    client_ip = request.client.host if request.client else None
+    log_event("logout", org_id=None, actor_id=None, actor_role=None, target_type=None, target_id=None, metadata=None, ip=client_ip, ip_salt=settings.ip_hash_salt)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

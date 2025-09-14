@@ -11,17 +11,18 @@ from ..models.auth import Role, User, UserOut
 
 
 class UserRepository:
-    def get_by_email(self, email: str) -> Optional[UserOut]:
+    def get_by_email(self, email: str) -> Optional[User]:
         with session_scope() as session:  # type: Session
             stmt = select(UserORM).where(UserORM.email == email)
             row = session.execute(stmt).scalar_one_or_none()
             if row is None:
                 return None
-            return UserOut(
+            return User(
                 id=row.id,
                 email=row.email or "",
                 full_name=row.name or "",
                 role=Role(row.role),
+                password_hash=row.password_hash or "",
                 status=str(row.status),
             )
 

@@ -1,12 +1,16 @@
 @baseUrl = http://localhost:8000
 
-### Salud del servicio
+### Salud del servicio (API y DB)
+GET {{baseUrl}}/api/health
+
+### Swagger Docs (referencia)
 GET {{baseUrl}}/docs
 
 @email = admin@example.com
 @password = 123456
 
-### Auth: Login (happy path)
+### Login (happy path)
+# @name login
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
@@ -14,8 +18,25 @@ Content-Type: application/json
   "email": "{{email}}",
   "password": "{{password}}"
 }
+> {%
+// Guarda access_token y cookie de refresh para siguientes requests
+try {
+  const data = JSON.parse(response.body);
+  if (data && data.access_token) {
+    client.global.set("accessToken", data.access_token);
+  }
+} catch {}
+const setCookie = response.headers["set-cookie"]; // puede ser string o array
+const cookies = Array.isArray(setCookie) ? setCookie : (setCookie ? [setCookie] : []);
+for (const c of cookies) {
+  const m = /refresh_token=([^;]+)/.exec(c);
+  if (m) {
+    client.global.set("refreshCookie", `refresh_token=${m[1]}`);
+  }
+}
+%}
 
-### Auth: Login (credenciales inválidas -> 401)
+### Login (credenciales inválidas -> 401)
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
@@ -24,16 +45,90 @@ Content-Type: application/json
   "password": "wrong"
 }
 
-### Auth: Me (requiere token)
-# 1) Copia el access_token del login exitoso
-# 2) Reemplaza abajo: Authorization: Bearer <token>
+### Me sin token (debe 401)
 GET {{baseUrl}}/api/auth/me
-Authorization: Bearer REEMPLAZA_CON_TOKEN
 
-### Auth: Refresh (requiere cookie HttpOnly)
-# La cookie refresh_token se establece automáticamente tras el login.
-# En REST Client, si no se conserva la cookie, copia manualmente la cabecera `Cookie` desde la respuesta del login.
+### Me con token (usa accessToken capturado)
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{accessToken}}
+
+### Refresh (requiere cookie HttpOnly)
+# Usa la cookie capturada del login: {{refreshCookie}}
 POST {{baseUrl}}/api/auth/refresh
+Cookie: {{refreshCookie}}
 
-### Auth: Logout (borra cookie refresh)
+### Refresh actualiza cookie (captura nueva)
+# @name refresh_capture
+POST {{baseUrl}}/api/auth/refresh
+Cookie: {{refreshCookie}}
+> {%
+const setCookie = response.headers["set-cookie"]; 
+const cookies = Array.isArray(setCookie) ? setCookie : (setCookie ? [setCookie] : []);
+for (const c of cookies) {
+  const m = /refresh_token=([^;]+)/.exec(c);
+  if (m) {
+    client.global.set("refreshCookie", `refresh_token=${m[1]}`);
+  }
+}
+%}
+
+### Logout (borra cookie refresh)
 POST {{baseUrl}}/api/auth/logout
+
+### Login simple (sin handler) para diagnosticar
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Rate limit: 6 intentos fallidos (espera 429)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "wrong"
+}
+
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "wrong"
+}
+
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "wrong"
+}
+
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "wrong"
+}
+
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "wrong"
+}
+
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "wrong"
+}
