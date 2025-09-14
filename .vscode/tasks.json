@@ -1,0 +1,24 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "frontend: start",
+      "type": "npm",
+      "script": "start"
+    },
+    {
+      "label": "frontend: test",
+      "type": "npm",
+      "script": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "backend: uvicorn",
+      "type": "shell",
+      "command": "uvicorn app.main:app --reload",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      }
+    }
+  ]
+}
