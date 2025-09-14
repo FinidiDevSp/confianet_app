@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from hashlib import sha256
 from typing import Any, Optional
+import json
 
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from ..core.database import session_scope
 
@@ -19,10 +21,12 @@ def log_event(action: str, org_id: Optional[str], actor_id: Optional[str], actor
     # Direct SQL to existing audit_log table to avoid defining ORM
     with session_scope() as session:
         session.execute(
-            """
-            INSERT INTO audit_log (id, org_id, actor_id, actor_role, action, target_type, target_id, metadata, ip_hash)
-            VALUES (UUID(), :org_id, :actor_id, :actor_role, :action, :target_type, :target_id, :metadata, :ip_hash)
-            """,
+            text(
+                """
+                INSERT INTO audit_log (id, org_id, actor_id, actor_role, action, target_type, target_id, metadata, ip_hash)
+                VALUES (UUID(), :org_id, :actor_id, :actor_role, :action, :target_type, :target_id, :metadata, :ip_hash)
+                """
+            ),
             {
                 "org_id": org_id,
                 "actor_id": actor_id,
@@ -30,8 +34,7 @@ def log_event(action: str, org_id: Optional[str], actor_id: Optional[str], actor
                 "action": action,
                 "target_type": target_type,
                 "target_id": target_id,
-                "metadata": metadata,
+                "metadata": json.dumps(metadata) if metadata is not None else None,
                 "ip_hash": ip_hash,
             },
         )
-

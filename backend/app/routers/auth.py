@@ -92,6 +92,9 @@ def refresh(request: Request, response: Response) -> TokenResponse:
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(response: Response, request: Request) -> Response:
+    raw: Optional[str] = request.cookies.get("refresh_token")
+    if raw:
+        revoke_refresh_token(raw)
     response.delete_cookie(key="refresh_token", path="/api/auth")
     # audit: logout
     client_ip = request.client.host if request.client else None
