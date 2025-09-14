@@ -40,5 +40,14 @@ class InMemoryRateLimiter:
         if key in self.buckets:
             del self.buckets[key]
 
+    def force_block(self, key: str) -> int:
+        now = time.time()
+        b = self.buckets.get(key)
+        if not b:
+            b = Bucket(attempts=self.max_attempts, window_start=now, blocked_until=0)
+            self.buckets[key] = b
+        b.blocked_until = now + self.block_seconds
+        return int(self.block_seconds)
+
 
 rate_limiter = InMemoryRateLimiter()

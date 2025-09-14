@@ -55,8 +55,9 @@ async def login(request: Request, response: Response) -> TokenResponse:
     if not ok:
         # org_id unknown; skip audit if org_id is None (enforced in log_event)
         log_event("login_rate_limited", org_id=None, actor_id=None, actor_role=None, target_type=None, target_id=None, metadata={"email": payload.email}, ip=client_ip, ip_salt=settings.ip_hash_salt)
-        detail = f"Demasiados intentos. Intenta de nuevo en {wait_seconds} segundos"
-        return JSONResponse(status_code=status.HTTP_429_TOO_MANY_REQUESTS, content={"detail": detail, "retry_after": wait_seconds, "remaining": 0}, headers={"Retry-After": str(wait_seconds)})
+        minutes = max((wait_seconds + 59) // 60, 1)
+        detail = f"Demasiados intentos. Intenta de nuevo en {minutes} minutos"
+        return JSONResponse(status_code=status.HTTP_429_TOO_MANY_REQUESTS, content={"detail": detail, "retry_after_minutes": minutes, "remaining": 0}, headers={"Retry-After": str(minutes * 60)})
 
     try:
         user: UserOut = authenticate_user(payload.email, payload.password)
@@ -67,8 +68,13 @@ async def login(request: Request, response: Response) -> TokenResponse:
             existing = users_repo.get_by_email(payload.email)
             org_for_log = getattr(existing, "org_id", None) if existing else None
             log_event("login_failed", org_id=org_for_log, actor_id=None, actor_role=None, target_type=None, target_id=None, metadata={"email": payload.email}, ip=client_ip, ip_salt=settings.ip_hash_salt)
-            # Include remaining attempts in message
-            detail = f"Credenciales inválidas. Intentos restantes: {remaining}"
+            # Include remaining attempts in message or show blocked info
+            if remaining <= 0:
+                seconds = rate_limiter.force_block(key)
+                minutes = max((seconds + 59) // 60, 1)
+                detail = f"Usuario bloqueado. Intenta de nuevo en {minutes} minutos"
+            else:
+                detail = f"Credenciales inválidas. Intentos restantes: {remaining}"
             raise HTTPException(status_code=exc.status_code, detail=detail)
         raise
     access, refresh = issue_tokens(user)
