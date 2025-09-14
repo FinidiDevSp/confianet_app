@@ -1,7 +1,36 @@
 @baseUrl = http://localhost:8000
 
-### Health check
-GET {{baseUrl}}/
+### Salud del servicio
+GET {{baseUrl}}/docs
 
-### Non-existent endpoint (should 404)
-GET {{baseUrl}}/does-not-exist
+### Auth: Login (happy path)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@themesbrand.com",
+  "password": "123456"
+}
+
+### Auth: Login (credenciales inválidas -> 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@themesbrand.com",
+  "password": "wrong"
+}
+
+### Auth: Me (requiere token)
+# 1) Copia el access_token del login exitoso
+# 2) Reemplaza abajo: Authorization: Bearer <token>
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer REEMPLAZA_CON_TOKEN
+
+### Auth: Refresh (requiere cookie HttpOnly)
+# La cookie refresh_token se establece automáticamente tras el login.
+# En REST Client, si no se conserva la cookie, copia manualmente la cabecera `Cookie` desde la respuesta del login.
+POST {{baseUrl}}/api/auth/refresh
+
+### Auth: Logout (borra cookie refresh)
+POST {{baseUrl}}/api/auth/logout

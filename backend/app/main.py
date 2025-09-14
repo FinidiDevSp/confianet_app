@@ -1,9 +1,25 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .core.settings import settings
+from .routers import auth
 
 app = FastAPI(title="Confianet API")
+
+# CORS for frontend at http://localhost:3000 by default
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/", tags=["health"])
 def read_root() -> dict[str, str]:
     """Return service health message."""
-    return {"message": "Hello, World"}
+    return {"message": "ok"}
+
+
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])

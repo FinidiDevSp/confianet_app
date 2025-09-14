@@ -5,6 +5,7 @@ const { api } = config;
 
 // default
 axios.defaults.baseURL = api.API_URL;
+axios.defaults.withCredentials = true;
 // content type
 axios.defaults.headers.post["Content-Type"] = "application/json";
 

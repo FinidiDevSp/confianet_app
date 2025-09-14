@@ -1,9 +1,7 @@
 //Include Both Helper File with needed methods
 import { getFirebaseBackend } from "../../../helpers/firebase_helper";
-import {
-  postFakeLogin,
-  postJwtLogin,
-} from "../../../helpers/fakebackend_helper";
+import { postFakeLogin, postJwtLogin } from "../../../helpers/fakebackend_helper";
+import { authLogin } from "../../../helpers/auth_api";
 
 import { loginSuccess, logoutUserSuccess, apiError, reset_login_flag } from './reducer';
 
@@ -23,7 +21,11 @@ export const loginUser = (user : any, history : any) => async (dispatch : any) =
         email: user.email,
         password: user.password
       });
-
+    } else if (process.env.REACT_APP_DEFAULTAUTH === "fastapi") {
+      response = authLogin({
+        email: user.email,
+        password: user.password,
+      });
     } else if (process.env.REACT_APP_API_URL) {
       response = postFakeLogin({
         email: user.email,

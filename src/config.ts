@@ -18,6 +18,8 @@ interface Config {
   api: ApiConfig;
 }
 
+const API_URL = (process.env.REACT_APP_API_URL as string) || "http://localhost:8000";
+
 const config: Config = {
   google: {
     API_KEY: "",
@@ -28,7 +30,7 @@ const config: Config = {
     APP_ID: "",
   },
   api: {
-    API_URL: "https://api-node.themesbrand.website",
+    API_URL,
   },
 };
 
