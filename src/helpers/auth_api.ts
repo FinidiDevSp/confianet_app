@@ -9,7 +9,7 @@ export interface LoginPayload {
 }
 
 export interface UserOut {
-  id: number;
+  id: string | number;
   email: string;
   full_name: string;
   role: string;
@@ -22,11 +22,10 @@ export interface TokenResponse {
   user: UserOut;
 }
 
-export const authLogin = (data: LoginPayload) => api.create("/api/auth/login", data) as Promise<TokenResponse>;
-export const authRefresh = () => api.create("/api/auth/refresh", {}) as Promise<TokenResponse>;
-export const authLogout = () => api.create("/api/auth/logout", {});
+export const authLogin = (data: LoginPayload): Promise<TokenResponse> => api.create<TokenResponse>("/api/auth/login", data);
+export const authRefresh = (): Promise<TokenResponse> => api.create<TokenResponse>("/api/auth/refresh", {});
+export const authLogout = (): Promise<void> => api.create<void>("/api/auth/logout", {});
 export const authMe = async (accessToken: string): Promise<UserOut> => {
-  const res = await axios.get("/api/auth/me", { headers: { Authorization: `Bearer ${accessToken}` } });
+  const res = await axios.get<UserOut>("/api/auth/me", { headers: { Authorization: `Bearer ${accessToken}` } });
   return res as unknown as UserOut;
 };
-

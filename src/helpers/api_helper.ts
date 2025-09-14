@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 import config from "config";
 
 const { api } = config;
@@ -55,8 +55,8 @@ class APIClient {
   //  get = (url, params) => {
   //   return axios.get(url, params);
   // };
-  get = (url: string, params?: any): Promise<AxiosResponse> => {
-    let response: Promise<AxiosResponse>;
+  get = <T = any>(url: string, params?: any): Promise<T> => {
+    let response: Promise<any>;
 
     let paramKeys: string[] = [];
 
@@ -67,9 +67,9 @@ class APIClient {
       });
 
       const queryString = paramKeys && paramKeys.length ? paramKeys.join('&') : "";
-      response = axios.get(`${url}?${queryString}`, params);
+      response = axios.get<T>(`${url}?${queryString}`, params) as unknown as Promise<T>;
     } else {
-      response = axios.get(`${url}`, params);
+      response = axios.get<T>(`${url}`, params) as unknown as Promise<T>;
     }
 
     return response;
@@ -77,24 +77,24 @@ class APIClient {
   /**
    * post given data to url
    */
-  create = (url:string, data:any) => {
-    return axios.post(url, data);
+  create = <T = any>(url: string, data: any): Promise<T> => {
+    return axios.post<T>(url, data) as unknown as Promise<T>;
   };
   /**
    * Updates data
    */
-  update = (url:string, data:any) => {
-    return axios.patch(url, data);
+  update = <T = any>(url: string, data: any): Promise<T> => {
+    return axios.patch<T>(url, data) as unknown as Promise<T>;
   };
 
-  put = (url:string, data:any) => {
-    return axios.put(url, data);
+  put = <T = any>(url: string, data: any): Promise<T> => {
+    return axios.put<T>(url, data) as unknown as Promise<T>;
   };
   /**
    * Delete
    */
-  delete = (url: string, config?: AxiosRequestConfig): Promise<AxiosResponse> => {
-    return axios.delete(url, { ...config });
+  delete = <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
+    return axios.delete<T>(url, { ...config }) as unknown as Promise<T>;
   };
 }
 const getLoggedinUser = () => {
