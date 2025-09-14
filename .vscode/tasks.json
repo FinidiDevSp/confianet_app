@@ -1,24 +1,50 @@
 {
+  "$schema": "https://json.schemastore.org/tasks.json",
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "frontend: start",
+      "label": "npm: start",
       "type": "npm",
-      "script": "start"
-    },
-    {
-      "label": "frontend: test",
-      "type": "npm",
-      "script": "test",
-      "problemMatcher": []
-    },
-    {
-      "label": "backend: uvicorn",
-      "type": "shell",
-      "command": "uvicorn app.main:app --reload",
+      "script": "start",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": [
+          {
+            "regexp": ".",
+            "file": 1,
+            "location": 1,
+            "message": 1
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Starting the development server",
+          "endsPattern": "You can now view"
+        }
+      },
       "options": {
-        "cwd": "${workspaceFolder}/backend"
+        "env": {
+          "BROWSER": "none"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
       }
+    },
+    {
+      "label": "terminate npm: start",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "$port=3000; $conns=Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue; if ($conns) { $pids = $conns | Select-Object -ExpandProperty OwningProcess | Sort-Object -Unique; foreach ($pid in $pids) { try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch {} } }"
+      ],
+      "problemMatcher": []
     }
   ]
 }
+
