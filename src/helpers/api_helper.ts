@@ -21,20 +21,25 @@ axios.interceptors.response.use(
     return response.data ? response.data : response;
   },
   function (error) {
-    // Any status codes that falls outside the range of 2xx cause this function to trigger
-    let message;
-    switch (error.status) {
-      case 500:
-        message = "Internal Server Error";
-        break;
+    // Normalize Axios error into readable message
+    const status = error?.response?.status as number | undefined;
+    const detail = error?.response?.data?.detail as string | undefined;
+    let message: string;
+    switch (status) {
       case 401:
-        message = "Invalid credentials";
+        message = detail || "Invalid credentials";
+        break;
+      case 403:
+        message = detail || "Forbidden";
         break;
       case 404:
-        message = "Sorry! the data you are looking for could not be found";
+        message = detail || "Not found";
+        break;
+      case 500:
+        message = detail || "Internal Server Error";
         break;
       default:
-        message = error.message || error;
+        message = detail || error?.message || "Request error";
     }
     return Promise.reject(message);
   }
