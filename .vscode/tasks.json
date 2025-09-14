@@ -4,12 +4,12 @@
   "tasks": [
     {
       "label": "setup: npm deps",
-      "type": "shell",
-      "command": "powershell",
+      "type": "process",
+      "command": "cmd",
       "args": [
-        "-NoProfile",
-        "-Command",
-        "$ErrorActionPreference='Stop'; if (-not (Test-Path 'node_modules/.bin/react-scripts.cmd')) { if (Test-Path 'package-lock.json') { Write-Host 'Installing npm deps with npm ci...'; npm ci } else { Write-Host 'Installing npm deps with npm install...'; npm install } } else { Write-Host 'Dependencies present; skipping install.' }"
+        "/d",
+        "/c",
+        "if not exist node_modules\\.bin\\react-scripts.cmd ( echo Installing npm deps with npm install... && npm install && echo Ensuring react-scripts@5.0.1 is installed... && npm install react-scripts@5.0.1 --save-exact ) else ( echo Dependencies present; skipping install. )"
       ],
       "problemMatcher": []
     },

@@ -16,34 +16,29 @@ const Index = () => {
     return (
         <React.Fragment>
             <Routes>
-                <Route>
-                    {publicRoutes.map((route: { path: string | undefined; component: any; }, idx: React.Key | null | undefined) => (
-                        <Route
-                            path={route.path}
-                            element={
-                                <NonAuthLayout>
-                                    {route.component}
-                                </NonAuthLayout>
-                            }
-                            key={idx}
-                            // exact={true}
-                        />
-                    ))}
-                </Route>
+                {publicRoutes.map((route: { path: string | undefined; component: any; }, idx: React.Key | null | undefined) => (
+                    <Route
+                        path={route.path}
+                        element={
+                            <NonAuthLayout>
+                                {route.component}
+                            </NonAuthLayout>
+                        }
+                        key={idx}
+                    />
+                ))}
 
-                <Route>
-                    {authProtectedRoutes.map((route, idx) => (
-                        <Route
-                            path={route.path}
-                            element={
-                                <AuthProtected>
-                                    <VerticalLayout>{route.component}</VerticalLayout>
-                                </AuthProtected>}
-                            key={idx}
-                            // exact={true}
-                        />
-                    ))}
-                </Route>
+                {authProtectedRoutes.map((route: { path: string; component: any }, idx: React.Key | null | undefined) => (
+                    <Route
+                        path={route.path}
+                        element={
+                            <AuthProtected>
+                                <VerticalLayout>{route.component}</VerticalLayout>
+                            </AuthProtected>
+                        }
+                        key={idx}
+                    />
+                ))}
 
                 {/* Default route: redirect to login if not authenticated */}
                 <Route path="/" element={<Navigate to={defaultTarget} replace />} />
