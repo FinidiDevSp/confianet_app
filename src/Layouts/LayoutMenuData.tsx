@@ -173,6 +173,12 @@ const Navdata = () => {
                     parentId: "dashboard",
                 },
                 {
+                    id: "audit",
+                    label: "Auditoría",
+                    link: "/dashboard-audit",
+                    parentId: "dashboard",
+                },
+                {
                     id: "crypto",
                     label: "Crypto",
                     link: "/dashboard-crypto",

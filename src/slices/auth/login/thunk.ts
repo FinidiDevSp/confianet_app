@@ -43,13 +43,13 @@ export const loginUser = (user : any, history : any) => async (dispatch : any) =
         data = finallogin.data;
         if (finallogin.status === "success") {
           dispatch(loginSuccess(data));
-          history('/dashboard')
+          history('/dashboard-audit')
         } else {
           dispatch(apiError(finallogin));
         }
       } else {
         dispatch(loginSuccess(data));
-        history('/dashboard')
+        history('/dashboard-audit')
       }
     }
   } catch (error : any) {

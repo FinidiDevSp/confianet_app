@@ -12,7 +12,7 @@ import { useProfile } from "../Components/Hooks/UserHooks";
 
 const Index = () => {
     const { token } = useProfile();
-    const defaultTarget = token ? "/dashboard" : "/login";
+    const defaultTarget = token ? "/dashboard-audit" : "/login";
     return (
         <React.Fragment>
             <Routes>

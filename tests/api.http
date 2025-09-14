@@ -84,6 +84,14 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
+### Audit: listar logs (requiere token)
+GET {{baseUrl}}/api/audit/logs?limit=10
+Authorization: Bearer {{accessToken}}
+
+### Audit: stats por acción (requiere token)
+GET {{baseUrl}}/api/audit/stats
+Authorization: Bearer {{accessToken}}
+
 ### Rate limit: 6 intentos fallidos (espera 429)
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
