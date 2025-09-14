@@ -43,7 +43,7 @@ def refresh(request: Request, response: Response) -> TokenResponse:
     data = decode_jwt(raw)
     if not data or data.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
-    user_id = int(data["sub"])  # sub is user id
+    user_id = str(data["sub"])  # sub is user id (UUID)
     me = me_from_user_id(user_id)
     if not me:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
@@ -64,7 +64,7 @@ def get_current_user(creds: HTTPAuthorizationCredentials | None = Depends(auth_s
     data = decode_jwt(creds.credentials)
     if not data or data.get("type") != "access":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    user_id = int(data["sub"])  # sub is user id
+    user_id = str(data["sub"])  # sub is user id (UUID)
     me = me_from_user_id(user_id)
     if not me:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
@@ -74,4 +74,3 @@ def get_current_user(creds: HTTPAuthorizationCredentials | None = Depends(auth_s
 @router.get("/me", response_model=MeResponse)
 def me(me: MeResponse = Depends(get_current_user)) -> MeResponse:
     return me
-

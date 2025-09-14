@@ -1,39 +1,42 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Optional
 
-from ..core.security import hash_password
-from ..models.auth import Role, User
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-
-class InMemoryUserRepository:
-    def __init__(self) -> None:
-        # Seed users for development
-        self._users: Dict[str, User] = {}
-        self._by_id: Dict[int, User] = {}
-
-        self._add_user(1, "admin@themesbrand.com", "Admin", Role.admin, "123456")
-        self._add_user(2, "responsable@example.com", "Responsable", Role.responsable, "123456")
-        self._add_user(3, "investigador@example.com", "Investigador", Role.investigador, "123456")
-        self._add_user(4, "auditor@example.com", "Auditor", Role.auditor, "123456")
-
-    def _add_user(self, id_: int, email: str, name: str, role: Role, password: str) -> None:
-        user = User(
-            id=id_,
-            email=email,
-            full_name=name,
-            role=role,
-            password_hash=hash_password(password),
-        )
-        self._users[email.lower()] = user
-        self._by_id[id_] = user
-
-    def get_by_email(self, email: str) -> Optional[User]:
-        return self._users.get(email.lower())
-
-    def get_by_id(self, id_: int) -> Optional[User]:
-        return self._by_id.get(id_)
+from ..core.database import session_scope
+from ..models.user import UserORM
+from ..models.auth import Role, User, UserOut
 
 
-users_repo = InMemoryUserRepository()
+class UserRepository:
+    def get_by_email(self, email: str) -> Optional[UserOut]:
+        with session_scope() as session:  # type: Session
+            stmt = select(UserORM).where(UserORM.email == email)
+            row = session.execute(stmt).scalar_one_or_none()
+            if row is None:
+                return None
+            return UserOut(
+                id=row.id,
+                email=row.email or "",
+                full_name=row.name or "",
+                role=Role(row.role),
+                status=str(row.status),
+            )
 
+    def get_by_id(self, id_: str) -> Optional[UserOut]:
+        with session_scope() as session:
+            row = session.get(UserORM, id_)
+            if row is None:
+                return None
+            return UserOut(
+                id=row.id,
+                email=row.email or "",
+                full_name=row.name or "",
+                role=Role(row.role),
+                status=str(row.status),
+            )
+
+
+users_repo = UserRepository()

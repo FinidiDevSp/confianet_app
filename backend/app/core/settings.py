@@ -12,11 +12,12 @@ class Settings(BaseSettings):
     cors_origins: List[str] = ["http://localhost:3000"]
     cookie_secure: bool = False  # True in production
     cookie_samesite: str = "lax"  # 'lax' | 'strict' | 'none'
+    database_url: str = "mysql+pymysql://user:password@localhost:3306/canal_denuncias"
+    dev_default_password: str = "123456"  # Fallback if no password column exists (dev only)
 
     class Config:
         env_file = ".env"
-        env_prefix = "JWT_"
+        env_prefix = ""
 
 
 settings = Settings()
-

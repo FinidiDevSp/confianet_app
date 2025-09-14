@@ -3,13 +3,16 @@
 ### Salud del servicio
 GET {{baseUrl}}/docs
 
+@email = admin@example.com
+@password = 123456
+
 ### Auth: Login (happy path)
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@themesbrand.com",
-  "password": "123456"
+  "email": "{{email}}",
+  "password": "{{password}}"
 }
 
 ### Auth: Login (credenciales inválidas -> 401)
@@ -17,7 +20,7 @@ POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@themesbrand.com",
+  "email": "{{email}}",
   "password": "wrong"
 }
 
