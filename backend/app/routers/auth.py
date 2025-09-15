@@ -228,7 +228,7 @@ def impersonate_start(payload: ImpersonateStartPayload, me: MeResponse = Depends
 
 
 @router.post("/impersonate/stop")
-def impersonate_stop(me: MeResponse = Depends(get_current_user), request: Request = None) -> dict:
+def impersonate_stop(me: MeResponse = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor)), request: Request = None) -> dict:
     # Current token belongs to impersonated user; retrieve imp_by from token and return admin tokens
     auth_header = request.headers.get("Authorization") if request else None
     if not auth_header or not auth_header.lower().startswith("bearer "):

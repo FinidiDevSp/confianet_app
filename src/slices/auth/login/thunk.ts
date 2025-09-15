@@ -58,7 +58,7 @@ export const loginUser = (user : any, history : any) => async (dispatch : any) =
           dispatch(loginSuccess(data));
           history('/dashboard-audit')
         } else {
-          dispatch(apiError('Unexpected login response'));
+          dispatch(apiError({ detail: 'Unexpected login response' } as any));
         }
       }
     }
@@ -124,7 +124,7 @@ export const verifyMfa = (mfa_token: string, code?: string, recovery_code?: stri
       dispatch(loginSuccess(data));
       if (navigate) navigate('/dashboard-audit');
     } else {
-      dispatch(apiError('Invalid MFA response'));
+      dispatch(apiError({ detail: 'Invalid MFA response' } as any));
     }
   } catch (error: any) {
     dispatch(apiError(error));
