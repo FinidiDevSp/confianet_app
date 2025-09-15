@@ -42,4 +42,5 @@ def me_from_user_id(user_id: str) -> Optional[MeResponse]:
     user = users_repo.get_by_id(user_id)
     if not user:
         return None
-    return MeResponse.model_validate(user)
+    # Normalize to dict for Pydantic v2 compatibility when adapting UserOut -> MeResponse
+    return MeResponse.model_validate(user.model_dump())
