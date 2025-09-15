@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
 from ..core.deps import require_roles
+from ..repositories.audit import log_event
+from ..core.settings import settings
 from ..models.auth import MeResponse, Role
 from ..repositories.invitations import create_invitation, get_invitation, mark_accepted, get_latest_pending_invitation
 from ..repositories.password_policy import get_policy, update_policy
@@ -27,9 +29,10 @@ class InvitePayload(BaseModel):
 
 
 @router.post("/invitations", status_code=status.HTTP_201_CREATED)
-def invite_user(payload: InvitePayload, me: MeResponse = Depends(require_roles(Role.admin))) -> dict[str, Any]:
+def invite_user(payload: InvitePayload, request: Request, me: MeResponse = Depends(require_roles(Role.admin))) -> dict[str, Any]:
     token, expires = create_invitation(org_id=me.org_id, invited_by=str(me.id), email=payload.email, name=payload.name, role=payload.role.value)
     # Ensure user exists in suspended (pending) state until password is set
+    new_user_id: Optional[str] = None
     with session_scope() as session:
         existing = users_repo.get_by_email(payload.email)
         if not existing:
@@ -46,8 +49,23 @@ def invite_user(payload: InvitePayload, me: MeResponse = Depends(require_roles(R
                 password_hash=None,
             )
             session.add(u)
+            new_user_id = u.id
     # In dev, return the link to signup page with token and prefilled data
     link = f"http://localhost:3000/auth-signup-basic?token={token}&email={payload.email}&name={payload.name or ''}"
+    # Audit: user invited
+    client_ip = request.client.host if request.client else None
+    target_id = new_user_id or (existing.id if existing else None)
+    log_event(
+        action="user_invited",
+        org_id=me.org_id,
+        actor_id=str(me.id),
+        actor_role=me.role.value,
+        target_type="user",
+        target_id=str(target_id) if target_id else None,
+        metadata={"email": payload.email, "role": payload.role.value},
+        ip=client_ip,
+        ip_salt=settings.ip_hash_salt,
+    )
     return {"invitation_url": link, "expires_at": expires.isoformat()}
 
 
@@ -127,11 +145,14 @@ def list_users(
 
 
 @router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
-def update_user(user_id: str, payload: UpdateUserPayload, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
+def update_user(user_id: str, payload: UpdateUserPayload, request: Request, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
     with session_scope() as session:
         obj = session.get(UserORM, user_id)
         if not obj:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+        prev_name = obj.name
+        prev_role = obj.role
+        prev_status = obj.status
         if payload.name is not None:
             obj.name = payload.name
         if payload.role is not None:
@@ -139,32 +160,92 @@ def update_user(user_id: str, payload: UpdateUserPayload, me: MeResponse = Depen
         if payload.status is not None:
             obj.status = payload.status
         session.add(obj)
+    # Audit outside session
+    client_ip = request.client.host if request.client else None
+    # Determine action
+    if payload.status == 'active' and prev_status != 'active':
+        log_event(
+            action="user_reactivated",
+            org_id=me.org_id,
+            actor_id=str(me.id),
+            actor_role=me.role.value,
+            target_type="user",
+            target_id=user_id,
+            metadata={"previous_status": prev_status, "new_status": "active"},
+            ip=client_ip,
+            ip_salt=settings.ip_hash_salt,
+        )
+    else:
+        changes: dict[str, Any] = {}
+        if payload.name is not None and payload.name != prev_name:
+            changes["name"] = {"from": prev_name, "to": payload.name}
+        if payload.role is not None and payload.role.value != prev_role:
+            changes["role"] = {"from": prev_role, "to": payload.role.value}
+        if payload.status is not None and payload.status != prev_status:
+            changes["status"] = {"from": prev_status, "to": payload.status}
+        log_event(
+            action="user_updated",
+            org_id=me.org_id,
+            actor_id=str(me.id),
+            actor_role=me.role.value,
+            target_type="user",
+            target_id=user_id,
+            metadata=changes or None,
+            ip=client_ip,
+            ip_salt=settings.ip_hash_salt,
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{user_id}/suspend", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
-def suspend_user(user_id: str, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
+def suspend_user(user_id: str, request: Request, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
     with session_scope() as session:
         obj = session.get(UserORM, user_id)
         if not obj:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
         obj.status = 'suspended'
         session.add(obj)
+    # Audit
+    client_ip = request.client.host if request.client else None
+    log_event(
+        action="user_suspended",
+        org_id=me.org_id,
+        actor_id=str(me.id),
+        actor_role=me.role.value,
+        target_type="user",
+        target_id=user_id,
+        metadata=None,
+        ip=client_ip,
+        ip_salt=settings.ip_hash_salt,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
-def delete_user(user_id: str, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
+def delete_user(user_id: str, request: Request, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
     with session_scope() as session:
         obj = session.get(UserORM, user_id)
         if not obj:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
         session.delete(obj)
+    # Audit deletion (optional)
+    client_ip = request.client.host if request.client else None
+    log_event(
+        action="user_deleted",
+        org_id=me.org_id,
+        actor_id=str(me.id),
+        actor_role=me.role.value,
+        target_type="user",
+        target_id=user_id,
+        metadata=None,
+        ip=client_ip,
+        ip_salt=settings.ip_hash_salt,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{user_id}/resend-invitation")
-def resend_invitation(user_id: str, me: MeResponse = Depends(require_roles(Role.admin))) -> dict[str, Any]:
+def resend_invitation(user_id: str, request: Request, me: MeResponse = Depends(require_roles(Role.admin))) -> dict[str, Any]:
     # Only for users without password (pending)
     with session_scope() as session:
         obj = session.get(UserORM, user_id)
@@ -183,11 +264,37 @@ def resend_invitation(user_id: str, me: MeResponse = Depends(require_roles(Role.
     latest = get_latest_pending_invitation(me.org_id, email)
     if latest and latest.expires_at >= datetime.utcnow():
         # We cannot reconstruct the raw token from its hash; indicate reuse.
+        # Audit reuse
+        client_ip = request.client.host if request.client else None
+        log_event(
+            action="invitation_reused",
+            org_id=me.org_id,
+            actor_id=str(me.id),
+            actor_role=me.role.value,
+            target_type="user",
+            target_id=user_id,
+            metadata={"expires_at": latest.expires_at.isoformat()},
+            ip=client_ip,
+            ip_salt=settings.ip_hash_salt,
+        )
         return {"reused": True, "invitation_url": None, "expires_at": latest.expires_at.isoformat()}
 
     # Otherwise, create a new invitation
     token, expires = create_invitation(org_id=me.org_id, invited_by=str(me.id), email=email, name=name, role=role)
     link = f"http://localhost:3000/auth-signup-basic?token={token}&email={email}&name={name or ''}"
+    # Audit resend
+    client_ip = request.client.host if request.client else None
+    log_event(
+        action="invitation_resent",
+        org_id=me.org_id,
+        actor_id=str(me.id),
+        actor_role=me.role.value,
+        target_type="user",
+        target_id=user_id,
+        metadata={"email": email},
+        ip=client_ip,
+        ip_salt=settings.ip_hash_salt,
+    )
     return {"reused": False, "invitation_url": link, "expires_at": expires.isoformat()}
 
 class PasswordPolicyPayload(BaseModel):

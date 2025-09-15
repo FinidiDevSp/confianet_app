@@ -73,6 +73,20 @@ const UsersAdmin: React.FC = () => {
     setRole(u.role);
   };
 
+  // Auto-dismiss alerts after a few seconds
+  useEffect(() => {
+    if (message) {
+      const t = setTimeout(() => setMessage(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [message]);
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
+
   const openConfirm = (u: UserRow) => {
     setTargetUser(u);
     setConfirmOpen(true);
