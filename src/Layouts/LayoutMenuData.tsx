@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const Navdata = () => {
@@ -1109,7 +1109,8 @@ const Navdata = () => {
                 },
             ],
         },
-    ];
-    return <React.Fragment>{menuItems}</React.Fragment>;
+    \];\n    try { const raw = sessionStorage.getItem('authUser'); const u = raw ? JSON.parse(raw) : null; const role = (u && (u.user?.role || u.role)) ? String(u.user?.role || u.role).toLowerCase() : ''; if (role === 'admin') { menuItems.splice(2, 0, { id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/admin/users' }); } } catch {}\n    return <React.Fragment>{menuItems}</React.Fragment>;
 };
 export default Navdata;
+
+
