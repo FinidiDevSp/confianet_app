@@ -6,6 +6,7 @@ const Navdata = () => {
     //state data
     const [isDashboard, setIsDashboard] = useState<boolean>(false);
     const [isApps, setIsApps] = useState<boolean>(false);
+    const [isAdmin, setIsAdmin] = useState<boolean>(false);
     const [isAuth, setIsAuth] = useState<boolean>(false);
     const [isPages, setIsPages] = useState<boolean>(false);
     const [isBaseUi, setIsBaseUi] = useState<boolean>(false);
@@ -81,6 +82,9 @@ const Navdata = () => {
         }
         if (iscurrentState !== 'Apps') {
             setIsApps(false);
+        }
+        if (iscurrentState !== 'Admin') {
+            setIsAdmin(false);
         }
         if (iscurrentState !== 'Auth') {
             setIsAuth(false);
@@ -1093,8 +1097,8 @@ const Navdata = () => {
         const role = u && ((u.user && u.user.role) || u.role) ? String((u.user && u.user.role) || u.role).toLowerCase() : '';
         if (role === 'admin') {
             menuItems.splice(2, 0, { id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/#',
-                click: function(e:any){ e.preventDefault(); setIscurrentState('Admin'); },
-                stateVariables: false,
+                click: function(e:any){ e.preventDefault(); setIsAdmin(!isAdmin); setIscurrentState('Admin'); updateIconSidebar(e); },
+                stateVariables: isAdmin,
                 subItems: [
                     { id:'users', label:'Usuarios', link:'/admin/users', parentId:'admin' },
                     { id:'settings', label:'Configuraciones', link:'/admin/settings', parentId:'admin' },
