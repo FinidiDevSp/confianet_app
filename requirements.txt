@@ -2,7 +2,8 @@ fastapi
 uvicorn[standard]
 python-jose[cryptography]
 passlib[bcrypt]==1.7.4
-bcrypt==4.1.2
+# pin bcrypt <4.0 due to passlib compatibility
+bcrypt==3.2.2
 pydantic-settings
 SQLAlchemy>=2.0
 PyMySQL

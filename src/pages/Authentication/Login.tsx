@@ -184,22 +184,17 @@ const Login = (props: any) => {
                                                         disabled={loader && true}
                                                         className="btn btn-success w-100" type="submit">
                                                         {loader && <Spinner size="sm" className='me-2'> Loading... </Spinner>}
-                                                        Sign In
+                                                        Acceder
                                                     </Button>
                                                 </div>
 
-                                                <div className="mt-4 text-center">
-                                                    <div className="signin-other-title">
-                                                        <h5 className="fs-13 mb-4 title">
-                                                </div>
+                                                
                                             </Form>
                                         </div>
                                     </CardBody>
                                 </Card>
 
-                                <div className="mt-4 text-center">
-                                    <p className="mb-0">
-                                </div>
+                                
 
                             </Col>
                         </Row>
