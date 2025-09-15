@@ -29,10 +29,12 @@ const Login = (props: any) => {
             error: state.Login.error,
             loading: state.Login.loading,
             errorMsg: state.Login.errorMsg,
+            mfaRequired: state.Login.mfaRequired,
+            mfaToken: state.Login.mfaToken,
         })
     );
     // Inside your component
-    const { user, error, errorMsg } = useSelector(loginpageData);
+    const { user, error, errorMsg, mfaRequired, mfaToken } = useSelector(loginpageData);
 
     const [userLogin, setUserLogin] = useState<any>([]);
     const [passwordShow, setPasswordShow] = useState<boolean>(false);
@@ -89,6 +91,7 @@ const Login = (props: any) => {
         }
     }, [dispatch, errorMsg]);
 
+    const [mfaCode, setMfaCode] = useState<string>("");
     document.title = "Basic SignIn | Velzon - React Admin & Dashboard Template";
     return (
         <React.Fragment>
@@ -170,9 +173,23 @@ const Login = (props: any) => {
                                                         {validation.touched.password && validation.errors.password ? (
                                                             <FormFeedback type="invalid">{validation.errors.password}</FormFeedback>
                                                         ) : null}
-                                                        <button className="btn btn-link position-absolute end-0 top-0 text-decoration-none text-muted" type="button" id="password-addon" onClick={() => setPasswordShow(!passwordShow)}><i className="ri-eye-fill align-middle"></i></button>
+                                                    <button className="btn btn-link position-absolute end-0 top-0 text-decoration-none text-muted" type="button" id="password-addon" onClick={() => setPasswordShow(!passwordShow)}><i className="ri-eye-fill align-middle"></i></button>
                                                     </div>
                                                 </div>
+
+                                                {mfaRequired && (
+                                                  <div className="mb-3">
+                                                    <Label className="form-label" htmlFor="mfa-code">Código 2FA</Label>
+                                                    <Input id="mfa-code" placeholder="Introduce el código de 6 dígitos" value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} />
+                                                    <div className="mt-2">
+                                                      <Button color="primary" type="button" onClick={() => {
+                                                        if (!mfaToken) return;
+                                                        const mod: any = require('../../slices/auth/login/thunk');
+                                                        dispatch(mod.verifyMfa(mfaToken, mfaCode, undefined, props.router.navigate));
+                                                      }}>Verificar 2FA</Button>
+                                                    </div>
+                                                  </div>
+                                                )}
 
                                                 <div className="form-check">
                                                     <Input className="form-check-input" type="checkbox" value="" id="auth-remember-check" />

@@ -32,6 +32,7 @@ class User(BaseModel):
     role: Role
     password_hash: str
     status: str = "active"  # "active" | "suspended"
+    mfa_enabled: bool = False
 
 
 class UserOut(BaseModel):
@@ -41,6 +42,7 @@ class UserOut(BaseModel):
     full_name: str
     role: Role
     status: str
+    mfa_enabled: bool = False
 
 
 class MeResponse(UserOut):

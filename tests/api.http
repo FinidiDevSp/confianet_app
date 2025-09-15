@@ -62,6 +62,61 @@ GET {{baseUrl}}/api/auth/me
 GET {{baseUrl}}/api/auth/me
 Authorization: Bearer {{accessToken}}
 
+### MFA: iniciar configuración (requiere token)
+POST {{baseUrl}}/api/users/mfa/setup/start
+Authorization: Bearer {{accessToken}}
+
+### MFA: confirmar configuración (reemplaza SECRET y CODE por los correctos)
+POST {{baseUrl}}/api/users/mfa/setup/confirm
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "secret": "REEMPLAZA_SECRET",
+  "code": "123456"
+}
+
+### Login con 2FA habilitado (respuesta requiere MFA)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### MFA: verificar código tras login
+# Copia el mfa_token de la respuesta previa
+POST {{baseUrl}}/api/auth/mfa/verify
+Content-Type: application/json
+
+{
+  "mfa_token": "REEMPLAZA_MFA_TOKEN",
+  "code": "123456"
+}
+
+### MFA: deshabilitar (usa code o recovery_code)
+POST {{baseUrl}}/api/users/mfa/disable
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "recovery_code": "REEMPLAZA_RECOVERY"
+}
+
+### Impersonate: iniciar (admin)
+POST {{baseUrl}}/api/auth/impersonate/start
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "target_user_id": "REEMPLAZA_USER_ID"
+}
+
+### Impersonate: terminar (usa token de impersonación en Authorization)
+POST {{baseUrl}}/api/auth/impersonate/stop
+Authorization: Bearer REEMPLAZA_IMP_TOKEN
+
 ### Refresh (requiere cookie HttpOnly)
 # Usa la cookie capturada del login: {{refreshCookie}}
 POST {{baseUrl}}/api/auth/refresh

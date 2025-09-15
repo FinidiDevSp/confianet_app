@@ -7,3 +7,5 @@ bcrypt==3.2.2
 pydantic-settings
 SQLAlchemy>=2.0
 PyMySQL
+pyotp
+qrcode[pil]

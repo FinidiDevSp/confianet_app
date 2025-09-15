@@ -25,6 +25,7 @@ class UserRepository:
                 role=Role(row.role),
                 password_hash=row.password_hash or "",
                 status=str(row.status),
+                mfa_enabled=str(row.mfa_enabled or '0') == '1',
             )
 
     def get_by_id(self, id_: str) -> Optional[UserOut]:
@@ -39,6 +40,7 @@ class UserRepository:
                 full_name=row.name or "",
                 role=Role(row.role),
                 status=str(row.status),
+                mfa_enabled=str(row.mfa_enabled or '0') == '1',
             )
 
 

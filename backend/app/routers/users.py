@@ -17,6 +17,13 @@ from ..core.security import hash_password, validate_password_policy
 from ..repositories.users import users_repo
 from ..core.database import session_scope
 from ..models.user import UserORM
+from ..repositories.mfa import get_mfa, upsert_mfa, set_enabled, ensure_mfa_table
+from ..core.crypto import encrypt_str, decrypt_str
+import pyotp
+import io
+import base64
+import json as _json
+import qrcode
 
 
 router = APIRouter()
@@ -218,6 +225,98 @@ def suspend_user(user_id: str, request: Request, me: MeResponse = Depends(requir
         ip=client_ip,
         ip_salt=settings.ip_hash_salt,
     )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# MFA endpoints for current user
+class MfaStartResponse(BaseModel):
+    secret: str
+    otpauth_url: str
+    qr_data_url: str
+
+
+@router.post("/mfa/setup/start", response_model=MfaStartResponse)
+def mfa_setup_start(me: MeResponse = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor))) -> MfaStartResponse:
+    # Generate a new TOTP secret; do not persist yet. Client must confirm.
+    secret = pyotp.random_base32()
+    issuer = "CanalDenuncias"
+    label = f"{me.email}"
+    otpauth_url = pyotp.totp.TOTP(secret).provisioning_uri(name=label, issuer_name=issuer)
+    # Generate QR image as data URL
+    img = qrcode.make(otpauth_url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    data_url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
+    return MfaStartResponse(secret=secret, otpauth_url=otpauth_url, qr_data_url=data_url)
+
+
+class MfaConfirmPayload(BaseModel):
+    secret: str
+    code: str
+
+
+class MfaConfirmResponse(BaseModel):
+    recovery_codes: list[str]
+
+
+@router.post("/mfa/setup/confirm", response_model=MfaConfirmResponse)
+def mfa_setup_confirm(payload: MfaConfirmPayload, request: Request, me: MeResponse = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor))) -> MfaConfirmResponse:
+    totp = pyotp.TOTP(payload.secret)
+    if not totp.verify(payload.code, valid_window=1):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Código 2FA inválido")
+    # Generate recovery codes
+    recovery = [base64.urlsafe_b64encode(uuid4().bytes)[:10].decode("utf-8") for _ in range(10)]
+    # Persist encrypted secret and codes
+    secret_enc = encrypt_str(payload.secret)
+    recovery_enc = encrypt_str(_json.dumps(recovery))
+    upsert_mfa(user_id=str(me.id), secret_enc=secret_enc, recovery_codes_enc=recovery_enc, enabled=True)
+    # Flip user flag
+    with session_scope() as session:
+        obj = session.get(UserORM, str(me.id))
+        if obj:
+            obj.mfa_enabled = '1'
+            session.add(obj)
+    # Audit
+    client_ip = request.client.host if request.client else None
+    log_event("2fa.enabled", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type=None, target_id=None, metadata=None, ip=client_ip, ip_salt=settings.ip_hash_salt)
+    return MfaConfirmResponse(recovery_codes=recovery)
+
+
+class MfaDisablePayload(BaseModel):
+    code: Optional[str] = None
+    recovery_code: Optional[str] = None
+
+
+@router.post("/mfa/disable", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def mfa_disable(payload: MfaDisablePayload, request: Request, me: MeResponse = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor))) -> Response:
+    rec = get_mfa(str(me.id))
+    if not rec or not rec.get("enabled"):
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    secret = decrypt_str(rec["secret_enc"]) if rec.get("secret_enc") else ""
+    codes = []
+    try:
+        codes = _json.loads(decrypt_str(rec["recovery_codes_enc"]))
+    except Exception:
+        codes = []
+    ok = False
+    if payload.code:
+        totp = pyotp.TOTP(secret)
+        ok = bool(totp.verify(payload.code, valid_window=1))
+    elif payload.recovery_code:
+        if payload.recovery_code in codes:
+            ok = True
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Código inválido")
+    # Disable flag on both tables
+    set_enabled(str(me.id), False)
+    with session_scope() as session:
+        obj = session.get(UserORM, str(me.id))
+        if obj:
+            obj.mfa_enabled = '0'
+            session.add(obj)
+    # Audit
+    client_ip = request.client.host if request.client else None
+    log_event("2fa.disabled", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type=None, target_id=None, metadata=None, ip=client_ip, ip_salt=settings.ip_hash_salt)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

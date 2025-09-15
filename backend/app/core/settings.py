@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     dev_default_password: str = "123456"  # Fallback if no password column exists (dev only)
     ip_hash_salt: str = "dev-ip-salt-change-me"
     invitation_ttl_seconds: int = 900  # 15 minutes by default
+    # Key seed for encrypting MFA secrets and recovery codes (derive to 32 bytes)
+    mfa_encrypt_seed: str = "dev-mfa-seed-change-me"
 
 
 

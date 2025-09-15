@@ -1,9 +1,9 @@
 //Include Both Helper File with needed methods
 import { getFirebaseBackend } from "../../../helpers/firebase_helper";
 import { postFakeLogin, postJwtLogin } from "../../../helpers/fakebackend_helper";
-import { authLogin } from "../../../helpers/auth_api";
+import { authLogin, authMfaVerify } from "../../../helpers/auth_api";
 
-import { loginSuccess, logoutUserSuccess, apiError, reset_login_flag } from './reducer';
+import { loginSuccess, logoutUserSuccess, apiError, reset_login_flag, mfaRequired as setMfaRequired } from './reducer';
 
 // const fireBaseBackend = getFirebaseBackend();
 
@@ -33,10 +33,16 @@ export const loginUser = (user : any, history : any) => async (dispatch : any) =
       });
     }
 
-    var data = await response;
+    var data: any = await response;
 
     if (data) {
-      sessionStorage.setItem("authUser", JSON.stringify(data));
+      if (data.mfa_required) {
+        dispatch(setMfaRequired(data.mfa_token));
+        return;
+      }
+      if (data.access_token) {
+        sessionStorage.setItem("authUser", JSON.stringify(data));
+      }
       if (process.env.REACT_APP_DEFAULTAUTH === "fake") {
         var finallogin: any= JSON.stringify(data);
         finallogin = JSON.parse(finallogin)
@@ -48,8 +54,12 @@ export const loginUser = (user : any, history : any) => async (dispatch : any) =
           dispatch(apiError(finallogin));
         }
       } else {
-        dispatch(loginSuccess(data));
-        history('/dashboard-audit')
+        if (data.access_token) {
+          dispatch(loginSuccess(data));
+          history('/dashboard-audit')
+        } else {
+          dispatch(apiError('Unexpected login response'));
+        }
       }
     }
   } catch (error : any) {
@@ -102,6 +112,21 @@ export const resetLoginFlag = () => async (dispatch : any) => {
     const response = dispatch(reset_login_flag());
     return response;
   } catch (error : any ){
+    dispatch(apiError(error));
+  }
+};
+
+export const verifyMfa = (mfa_token: string, code?: string, recovery_code?: string, navigate?: any) => async (dispatch: any) => {
+  try {
+    const data: any = await authMfaVerify({ mfa_token, code, recovery_code });
+    if (data && data.access_token) {
+      sessionStorage.setItem("authUser", JSON.stringify(data));
+      dispatch(loginSuccess(data));
+      if (navigate) navigate('/dashboard-audit');
+    } else {
+      dispatch(apiError('Invalid MFA response'));
+    }
+  } catch (error: any) {
     dispatch(apiError(error));
   }
 };

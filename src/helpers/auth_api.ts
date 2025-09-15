@@ -29,3 +29,11 @@ export const authMe = async (accessToken: string): Promise<UserOut> => {
   const res = await axios.get<UserOut>("/api/auth/me", { headers: { Authorization: `Bearer ${accessToken}` } });
   return res as unknown as UserOut;
 };
+
+export interface MfaVerifyPayload {
+  mfa_token: string;
+  code?: string;
+  recovery_code?: string;
+}
+
+export const authMfaVerify = (data: MfaVerifyPayload): Promise<TokenResponse> => api.create<TokenResponse>("/api/auth/mfa/verify", data);

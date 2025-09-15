@@ -6,6 +6,8 @@ export const initialState :any= {
   loading: false,
   isUserLogout: false,
   errorMsg: false, // for error
+  mfaRequired: false,
+  mfaToken: null,
 };
 
 const loginSlice = createSlice({
@@ -23,12 +25,22 @@ const loginSlice = createSlice({
       state.user = action.payload
       state.loading = false;
       state.errorMsg = false;
+      state.mfaRequired = false;
+      state.mfaToken = null;
     },
     logoutUserSuccess(state, action) {
       state.isUserLogout = true
     },
     reset_login_flag(state : any) {
       state.error = null
+      state.loading = false;
+      state.errorMsg = false;
+      state.mfaRequired = false;
+      state.mfaToken = null;
+    },
+    mfaRequired(state: any, action: any) {
+      state.mfaRequired = true;
+      state.mfaToken = action.payload;
       state.loading = false;
       state.errorMsg = false;
     }
@@ -40,6 +52,7 @@ export const {
   loginSuccess,
   logoutUserSuccess,
   reset_login_flag
+  , mfaRequired
 } = loginSlice.actions
 
 export default loginSlice.reducer;
