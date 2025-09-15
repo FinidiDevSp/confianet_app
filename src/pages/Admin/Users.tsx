@@ -160,7 +160,7 @@ const UsersAdmin: React.FC = () => {
         setEditingUser(null);
       } else {
         const res: any = await axios.post(`/api/users/invitations`, { email, name, role });
-        setMessage(`Invitación enviada. URL (dev): ${res.invitation_url}`);
+        setMessage(`Invitación enviada a ${email}`);
       }
       setEmail(''); setName(''); setRole('investigador');
       await load();

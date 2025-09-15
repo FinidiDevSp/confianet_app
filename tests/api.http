@@ -176,6 +176,26 @@ Content-Type: application/json
   "role": "investigador"
 }
 
+### Settings: obtener configuración de correo (admin)
+GET {{baseUrl}}/api/settings/email
+Authorization: Bearer {{accessToken}}
+
+### Settings: configurar SMTP (admin)
+PATCH {{baseUrl}}/api/settings/email
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "smtp_host": "smtp.example.com",
+  "smtp_port": 587,
+  "username": "apikey",
+  "password": "REEMPLAZA",
+  "use_tls": true,
+  "use_ssl": false,
+  "from_name": "Confianet",
+  "from_email": "no-reply@example.com"
+}
+
 ### Users: listar usuarios (admin)
 GET {{baseUrl}}/api/users?limit=10&offset=0
 Authorization: Bearer {{accessToken}}

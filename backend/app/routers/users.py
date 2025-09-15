@@ -24,6 +24,8 @@ import io
 import base64
 import json as _json
 import qrcode
+from ..repositories.app_settings import get_json
+from ..core.emailer import SmtpConfig, send_email
 
 
 router = APIRouter()
@@ -57,8 +59,33 @@ def invite_user(payload: InvitePayload, request: Request, me: MeResponse = Depen
             )
             session.add(u)
             new_user_id = u.id
-    # In dev, return the link to signup page with token and prefilled data
+    # Build link for email
     link = f"http://localhost:3000/auth-signup-basic?token={token}&email={payload.email}&name={payload.name or ''}"
+    # Send real email using org email settings
+    conf = get_json(me.org_id, "email_settings")
+    if not conf or not conf.get("smtp_host") or not conf.get("from_email") or not conf.get("smtp_port"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email settings not configured")
+    smtp_cfg = SmtpConfig(
+        host=str(conf.get("smtp_host")),
+        port=int(conf.get("smtp_port", 587)),
+        username=conf.get("username"),
+        password=conf.get("password"),
+        use_tls=bool(conf.get("use_tls", True)),
+        use_ssl=bool(conf.get("use_ssl", False)),
+        from_name=str(conf.get("from_name", "Confianet")),
+        from_email=str(conf.get("from_email")),
+    )
+    subject = "Invitación a Confianet"
+    html = f"""
+    <p>Has sido invitado a unirte a Confianet{(' como ' + payload.role.value) if payload.role else ''}.</p>
+    <p>Haz clic en el siguiente enlace para crear tu contraseña:</p>
+    <p><a href="{link}">Completar registro</a></p>
+    <p>Si no solicitaste esta invitación, ignora este mensaje.</p>
+    """
+    try:
+        send_email(smtp_cfg, payload.email, subject, html)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"No se pudo enviar el correo: {e}")
     # Audit: user invited
     client_ip = request.client.host if request.client else None
     target_id = new_user_id or (existing.id if existing else None)
@@ -73,7 +100,7 @@ def invite_user(payload: InvitePayload, request: Request, me: MeResponse = Depen
         ip=client_ip,
         ip_salt=settings.ip_hash_salt,
     )
-    return {"invitation_url": link, "expires_at": expires.isoformat()}
+    return {"message": f"Invitación enviada a {payload.email}"}
 
 
 class AcceptInvitationPayload(BaseModel):

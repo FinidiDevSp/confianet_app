@@ -255,7 +255,10 @@ const Navdata = () => {
                     return [{ id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/#',
                         click: function(e:any){ e.preventDefault(); setIscurrentState('Admin'); },
                         stateVariables: false,
-                        subItems: [ { id:'users', label:'Usuarios', link:'/admin/users', parentId:'admin' } ] }];
+                        subItems: [
+                            { id:'users', label:'Usuarios', link:'/admin/users', parentId:'admin' },
+                            { id:'settings', label:'Configuraciones', link:'/admin/settings', parentId:'admin' },
+                        ] }];
                 }
             } catch {}
             return [] as any[];
