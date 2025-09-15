@@ -1102,14 +1102,8 @@ const Navdata = () => {
             ],
         },
     ];
-    try {
-        const raw = sessionStorage.getItem('authUser');
-        const u = raw ? JSON.parse(raw) : null;
-        const role = u && ((u.user && u.user.role) || u.role) ? String((u.user && u.user.role) || u.role).toLowerCase() : '';
-        if (role === 'admin') {
-            menuItems.splice(2, 0, { id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/admin/users' });
-        }
-    } catch (e) {}
+    // Admin section already injected above with subItems when role === 'admin'.
+    // Removed duplicate splice that forced redirect to /admin/users.
     return <React.Fragment>{menuItems}</React.Fragment>;
 };
 export default Navdata;
