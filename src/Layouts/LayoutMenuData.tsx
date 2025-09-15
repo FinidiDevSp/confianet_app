@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const Navdata = () => {
@@ -243,12 +243,6 @@ const Navdata = () => {
                             label: "Month Grid",
                             link: "/apps-calendar-month-grid",
                             parentId: "apps"
-                },
-                {
-                    id: "audit",
-                    label: "Auditoría",
-                    link: "/dashboard-audit",
-                    parentId: "dashboard",
                 },
             ]
         },

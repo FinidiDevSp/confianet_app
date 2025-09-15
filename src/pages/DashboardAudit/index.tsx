@@ -24,6 +24,8 @@ const DashboardAudit: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [actionFilter, setActionFilter] = useState<string>("");
   const [roleFilter, setRoleFilter] = useState<string>("");
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   useEffect(() => {
     // Ensure Authorization header is set from stored token
@@ -37,7 +39,7 @@ const DashboardAudit: React.FC = () => {
       try {
         setLoading(true);
         const [logsRes, statsRes] = await Promise.all([
-          axios.get<AuditRow[]>("/api/audit/logs", { params: { limit: 25, action: actionFilter || undefined, role: roleFilter || undefined } }),
+          axios.get<AuditRow[]>("/api/audit/logs", { params: { limit: pageSize, offset: (page - 1) * pageSize, action: actionFilter || undefined, role: roleFilter || undefined } }),
           axios.get<Stats>("/api/audit/stats"),
         ]);
         if (!canceled) {
@@ -54,7 +56,9 @@ const DashboardAudit: React.FC = () => {
     return () => { canceled = true; };
   }, [actionFilter, roleFilter]);
 
-  const total = useMemo(() => logs.length, [logs]);
+  const totalOnPage = useMemo(() => logs.length, [logs]);
+  const hasPrev = page > 1;
+  const hasNext = totalOnPage >= pageSize;
 
   return (
     <React.Fragment>
@@ -62,13 +66,13 @@ const DashboardAudit: React.FC = () => {
         <Container fluid>
           <Row>
             <Col lg={12}>
-              <h4 className="mb-3">Dashboard Auditoría</h4>
+              <h4 className="mb-3">Dashboard Auditoria</h4>
             </Col>
           </Row>
           {error && <Alert color="danger" isOpen transition={{ timeout: 200 }}>{error}</Alert>}
-          <Row className="mb-3">
+          <Row className="align-items-end mb-3 g-3">
             <Col md={4} sm={6} className="mb-2">
-              <Label className="me-2">Acción</Label>
+              <Label className="me-2">Accion</Label>
               <Input type="select" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
                 <option value="">Todas</option>
                 {Object.keys(stats).map((k) => (
@@ -116,7 +120,7 @@ const DashboardAudit: React.FC = () => {
                         <thead>
                           <tr>
                             <th>Fecha</th>
-                            <th>Acción</th>
+                            <th>Accion</th>
                             <th>Rol</th>
                             <th>Usuario</th>
                             <th>Org</th>
@@ -134,13 +138,11 @@ const DashboardAudit: React.FC = () => {
                               <td>{r.ip_hash ? r.ip_hash.slice(0, 8) + '…' : '-'}</td>
                             </tr>
                           ))}
-                          {total === 0 && (
+                          {totalOnPage === 0 && (
                             <tr><td colSpan={6} className="text-center">Sin eventos</td></tr>
                           )}
                         </tbody>
-                      </Table>
-                    </div>
-                  )}
+                      </Table></div>\n                    <div className="d-flex justify-content-between align-items-center mt-3">\n                      <div className="d-flex align-items-center gap-2">\n                        <span className="text-muted small">Pagina {page}</span>\n                        <select className="form-select form-select-sm" style={{ width: 90 }} value={pageSize} onChange={(e) => { setPage(1); setPageSize(parseInt(e.target.value || "10", 10)); }}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select>\n                      </div>\n                      <div className="d-flex gap-2">\n                        <button className="btn btn-sm btn-secondary" disabled={!hasPrev || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>� Anterior</button>\n                        <button className="btn btn-sm btn-secondary" disabled={!hasNext || loading} onClick={() => setPage((p) => p + 1)}>Siguiente �</button>\n                      </div>\n                    </div>\n                  )}
                 </CardBody>
               </Card>
             </Col>
@@ -152,3 +154,11 @@ const DashboardAudit: React.FC = () => {
 };
 
 export default DashboardAudit;
+
+
+
+
+
+
+
+
