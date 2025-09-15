@@ -246,23 +246,7 @@ const Navdata = () => {
                 },
             ]
         },
-        // Admin section (only visible for admin)
-        ...(function(){
-            try {
-                const u = JSON.parse(sessionStorage.getItem('authUser') || 'null');
-                const role = u && (u.user?.role || u.role);
-                if (role === 'admin') {
-                    return [{ id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/#',
-                        click: function(e:any){ e.preventDefault(); setIscurrentState('Admin'); },
-                        stateVariables: false,
-                        subItems: [
-                            { id:'users', label:'Usuarios', link:'/admin/users', parentId:'admin' },
-                            { id:'settings', label:'Configuraciones', link:'/admin/settings', parentId:'admin' },
-                        ] }];
-                }
-            } catch {}
-            return [] as any[];
-        })(),
+        
                 {
                     id: "chat",
                     label: "Chat",
@@ -1102,8 +1086,21 @@ const Navdata = () => {
             ],
         },
     ];
-    // Admin section already injected above with subItems when role === 'admin'.
-    // Removed duplicate splice that forced redirect to /admin/users.
+    // Inject Admin section (with submenus) just below Dashboards when role === 'admin'
+    try {
+        const raw = sessionStorage.getItem('authUser');
+        const u = raw ? JSON.parse(raw) : null;
+        const role = u && ((u.user && u.user.role) || u.role) ? String((u.user && u.user.role) || u.role).toLowerCase() : '';
+        if (role === 'admin') {
+            menuItems.splice(2, 0, { id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/#',
+                click: function(e:any){ e.preventDefault(); setIscurrentState('Admin'); },
+                stateVariables: false,
+                subItems: [
+                    { id:'users', label:'Usuarios', link:'/admin/users', parentId:'admin' },
+                    { id:'settings', label:'Configuraciones', link:'/admin/settings', parentId:'admin' },
+                ] });
+        }
+    } catch (e) {}
     return <React.Fragment>{menuItems}</React.Fragment>;
 };
 export default Navdata;
