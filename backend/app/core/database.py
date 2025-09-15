@@ -14,7 +14,7 @@ Base = declarative_base()
 
 # Example MySQL URL: mysql+pymysql://user:password@localhost:3306/canal_denuncias
 engine = create_engine(settings.database_url, pool_pre_ping=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 
 @contextmanager
@@ -28,4 +28,5 @@ def session_scope() -> Iterator[Session]:
         raise
     finally:
         session.close()
+
 
