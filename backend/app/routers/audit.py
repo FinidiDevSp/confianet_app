@@ -40,7 +40,7 @@ def list_logs(
 
 @router.get("/stats", response_model=dict[str, int])
 def stats(
-    me: MeResponse = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor)),
+    me: Any = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor)),
 ) -> dict[str, int]:
     sql = text(
         """

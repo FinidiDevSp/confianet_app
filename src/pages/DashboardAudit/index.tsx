@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Card, CardBody, Col, Container, Row, Table, Spinner, Alert } from "reactstrap";
+import { Card, CardBody, Col, Container, Row, Table, Spinner, Alert, Input, Label } from "reactstrap";
+import { getLoggedinUser, setAuthorization } from "../../helpers/api_helper";
 import axios from "axios";
 
 type AuditRow = {
@@ -21,14 +22,22 @@ const DashboardAudit: React.FC = () => {
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionFilter, setActionFilter] = useState<string>("");
+  const [roleFilter, setRoleFilter] = useState<string>("");
 
   useEffect(() => {
+    // Ensure Authorization header is set from stored token
+    try {
+      const u: any = getLoggedinUser();
+      const t = u && (u.access_token || u.token);
+      if (t) setAuthorization(t);
+    } catch {}
     let canceled = false;
     async function load() {
       try {
         setLoading(true);
         const [logsRes, statsRes] = await Promise.all([
-          axios.get<AuditRow[]>("/api/audit/logs", { params: { limit: 25 } }),
+          axios.get<AuditRow[]>("/api/audit/logs", { params: { limit: 25, action: actionFilter || undefined, role: roleFilter || undefined } }),
           axios.get<Stats>("/api/audit/stats"),
         ]);
         if (!canceled) {
@@ -43,7 +52,7 @@ const DashboardAudit: React.FC = () => {
     }
     load();
     return () => { canceled = true; };
-  }, []);
+  }, [actionFilter, roleFilter]);
 
   const total = useMemo(() => logs.length, [logs]);
 
@@ -56,7 +65,28 @@ const DashboardAudit: React.FC = () => {
               <h4 className="mb-3">Dashboard Auditoría</h4>
             </Col>
           </Row>
-          {error && <Alert color="danger">{error}</Alert>}
+          {error && <Alert color="danger" isOpen transition={{ timeout: 200 }}>{error}</Alert>}
+          <Row className="mb-3">
+            <Col md={4} sm={6} className="mb-2">
+              <Label className="me-2">Acción</Label>
+              <Input type="select" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+                <option value="">Todas</option>
+                {Object.keys(stats).map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </Input>
+            </Col>
+            <Col md={4} sm={6} className="mb-2">
+              <Label className="me-2">Rol</Label>
+              <Input type="select" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="admin">admin</option>
+                <option value="responsable">responsable</option>
+                <option value="investigador">investigador</option>
+                <option value="auditor">auditor</option>
+              </Input>
+            </Col>
+          </Row>
           <Row>
             <Col xl={4} lg={6} className="mb-3">
               <Card>
@@ -122,4 +152,3 @@ const DashboardAudit: React.FC = () => {
 };
 
 export default DashboardAudit;
-

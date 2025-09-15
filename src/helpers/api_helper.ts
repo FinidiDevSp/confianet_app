@@ -10,10 +10,15 @@ axios.defaults.withCredentials = true;
 axios.defaults.headers.post["Content-Type"] = "application/json";
 
 // content type
-const authUser: any = sessionStorage.getItem("authUser")
-const token = JSON.parse(authUser) ? JSON.parse(authUser).token : null;
-if (token)
-  axios.defaults.headers.common["Authorization"] = "Bearer " + token;
+const authUser: any = sessionStorage.getItem("authUser");
+let initialToken: string | null = null;
+try {
+  const parsed = authUser ? JSON.parse(authUser) : null;
+  initialToken = parsed ? (parsed.access_token || parsed.token || null) : null;
+} catch {}
+if (initialToken) {
+  axios.defaults.headers.common["Authorization"] = "Bearer " + initialToken;
+}
 
 // intercepting to capture errors
 axios.interceptors.response.use(
