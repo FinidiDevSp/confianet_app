@@ -24,6 +24,7 @@ const BasicSignUp = () => {
     const [passwordShow, setPasswordShow] = useState<boolean>(false);
     const [message, setMessage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [canSubmit, setCanSubmit] = useState<boolean>(false);
 
     const validation: any = useFormik({
         // enableReinitialize : use this flag when initial values needs to be changed
@@ -132,7 +133,7 @@ const BasicSignUp = () => {
                                                         <Input
                                                             type={passwordShow ? "text" : "password"}
                                                             className="form-control pe-5 password-input"
-                                                            placeholder="Enter password"
+                                                            placeholder="Contraseña"
                                                             id="password-input"
                                                             name="password"
                                                             value={validation.values.password}
@@ -140,12 +141,12 @@ const BasicSignUp = () => {
                                                             onChange={validation.handleChange}
                                                             invalid={validation.errors.password && validation.touched.password ? true : false}
                                                         />
-                                                        {validation.errors.password && validation.touched.password ? (
-                                                            <FormFeedback type="invalid">{validation.errors.password}</FormFeedback>
-                                                        ) : null}
-                                                        <Button color="link" onClick={() => setPasswordShow(!passwordShow)} className="position-absolute end-0 top-0 text-decoration-none text-muted password-addon" type="button"
+                                                        <Button color="link" onClick={() => setPasswordShow(!passwordShow)} className="position-absolute end-0 top-50 translate-middle-y text-decoration-none text-muted password-addon" type="button"
                                                             id="password-addon"><i className="ri-eye-fill align-middle"></i></Button>
                                                     </div>
+                                                    {validation.errors.password && validation.touched.password ? (
+                                                        <FormFeedback className="d-block" type="invalid">{validation.errors.password}</FormFeedback>
+                                                    ) : null}
                                                 </div>
 
                                                 <div className="mb-3">
@@ -173,26 +174,13 @@ const BasicSignUp = () => {
                                                     <button className="btn btn-success w-100" type="submit">Crear contraseña</button>
                                                 </div>
 
-                                                <div className="mt-4 text-center">
-                                                    <div className="signin-other-title">
-                                                        <h5 className="fs-13 mb-4 title text-muted">Create account with</h5>
-                                                    </div>
-
-                                                    <div>
-                                                        <button type="button" className="btn btn-primary btn-icon waves-effect waves-light"><i className="ri-facebook-fill fs-16"></i></button>{" "}
-                                                        <button type="button" className="btn btn-danger btn-icon waves-effect waves-light"><i className="ri-google-fill fs-16"></i></button>{" "}
-                                                        <button type="button" className="btn btn-dark btn-icon waves-effect waves-light"><i className="ri-github-fill fs-16"></i></button>{" "}
-                                                        <button type="button" className="btn btn-info btn-icon waves-effect waves-light"><i className="ri-twitter-fill fs-16"></i></button>
-                                                    </div>
-                                                </div>
+                                                {/* Social login removed */}
                                             </Form>
                                         </div>
                                     </CardBody>
                                 </Card>
 
-                                <div className="mt-4 text-center">
-                                    <p className="mb-0">Already have an account ? <Link to="/auth-signin-basic" className="fw-semibold text-primary text-decoration-underline"> Signin </Link> </p>
-                                </div>
+                                {/* Already have an account link removed */}
 
                             </Col>
                         </Row>
