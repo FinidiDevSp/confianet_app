@@ -80,6 +80,7 @@ import Ranking from "../pages/NFTMarketplace/Ranking";
 import WalletConnect from "../pages/NFTMarketplace/WalletConnect";
 // Settings
 import ThemeCustomizerPage from "../pages/Settings/ThemeCustomizerPage";
+import UsersAdmin from "../pages/Admin/Users";
 
 // Base Ui
 import UiAlerts from "../pages/BaseUi/UiAlerts/UiAlerts";
@@ -252,7 +253,7 @@ const authProtectedRoutes = [
   { path: "/dashboard-analytics", component: <DashboardAnalytics /> },
   { path: "/dashboard-crm", component: <DashboardCrm /> },
   { path: "/dashboard", component: <DashboardEcommerce /> },
-  { path: "/dashboard", component: <DashboardEcommerce /> },
+  { path: "/admin/users", component: <UsersAdmin /> },
   { path: "/dashboard-audit", component: <DashboardAudit /> },
   { path: "/dashboard-crypto", component: <DashboardCrypto /> },
   { path: "/dashboard-projects", component: <DashboardProject /> },

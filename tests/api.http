@@ -100,6 +100,38 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/audit/logs?limit=10&role=admin
 Authorization: Bearer {{accessToken}}
 
+### Users: invitar usuario (admin)
+POST {{baseUrl}}/api/users/invitations
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "email": "nuevo.investigador@example.com",
+  "name": "Investigador Demo",
+  "role": "investigador"
+}
+
+### Users: listar usuarios (admin)
+GET {{baseUrl}}/api/users
+Authorization: Bearer {{accessToken}}
+
+### Users: password policy (get)
+GET {{baseUrl}}/api/users/password-policy
+Authorization: Bearer {{accessToken}}
+
+### Users: password policy (set)
+PATCH {{baseUrl}}/api/users/password-policy
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "min_length": 12,
+  "require_upper": true,
+  "require_number": true,
+  "require_symbol": true
+}
+
+
 ### Rate limit: 6 intentos fallidos (espera 429)
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json

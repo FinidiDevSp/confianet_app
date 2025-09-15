@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     database_url: str = "mysql+pymysql://user:password@localhost:3306/canal_denuncias"
     dev_default_password: str = "123456"  # Fallback if no password column exists (dev only)
     ip_hash_salt: str = "dev-ip-salt-change-me"
+    invitation_ttl_seconds: int = 900  # 15 minutes by default
 
 
 

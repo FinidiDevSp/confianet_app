@@ -248,9 +248,29 @@ const Navdata = () => {
                             label: "Month Grid",
                             link: "/apps-calendar-month-grid",
                             parentId: "apps"
-                        },
-                    ]
                 },
+                {
+                    id: "audit",
+                    label: "Auditoría",
+                    link: "/dashboard-audit",
+                    parentId: "dashboard",
+                },
+            ]
+        },
+        // Admin section (only visible for admin)
+        ...(function(){
+            try {
+                const u = JSON.parse(sessionStorage.getItem('authUser') || 'null');
+                const role = u && (u.user?.role || u.role);
+                if (role === 'admin') {
+                    return [{ id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/#',
+                        click: function(e:any){ e.preventDefault(); setIscurrentState('Admin'); },
+                        stateVariables: false,
+                        subItems: [ { id:'users', label:'Usuarios', link:'/admin/users', parentId:'admin' } ] }];
+                }
+            } catch {}
+            return [] as any[];
+        })(),
                 {
                     id: "chat",
                     label: "Chat",

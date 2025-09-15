@@ -53,3 +53,15 @@ def decode_jwt(token: str) -> Optional[dict[str, Any]]:
         return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     except JWTError:
         return None
+
+
+def validate_password_policy(password: str, min_length: int, require_upper: bool, require_number: bool, require_symbol: bool) -> Optional[str]:
+    if len(password) < min_length:
+        return f"La contraseña debe tener al menos {min_length} caracteres"
+    if require_upper and password.lower() == password:
+        return "La contraseña debe incluir al menos una mayúscula"
+    if require_number and not any(c.isdigit() for c in password):
+        return "La contraseña debe incluir al menos un número"
+    if require_symbol and not any(not c.isalnum() for c in password):
+        return "La contraseña debe incluir al menos un símbolo"
+    return None
