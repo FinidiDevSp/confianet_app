@@ -158,3 +158,16 @@ def set_password_policy(payload: PasswordPolicyPayload, me: MeResponse = Depends
 
 
 
+
+@router.get("/invitations/validate")
+def validate_invitation(token: str) -> dict[str, Any]:
+    inv = get_invitation(token)
+    if not inv:
+        return {"valid": False, "expired": False, "used": False, "detail": "Invitación inválida"}
+    expired = inv.expires_at < datetime.utcnow()
+    used = inv.accepted_at is not None
+    if expired:
+        return {"valid": False, "expired": True, "used": used, "detail": "El enlace de invitación ha caducado. Solicita una nueva invitación."}
+    if used:
+        return {"valid": False, "expired": False, "used": True, "detail": "Este enlace ya fue utilizado."}
+    return {"valid": True, "expired": False, "used": False, "email": inv.email, "name": inv.name, "expires_at": inv.expires_at.isoformat()}

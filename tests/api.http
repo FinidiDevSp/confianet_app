@@ -131,6 +131,9 @@ Content-Type: application/json
   "require_symbol": true
 }
 
+### Users: validar invitación (token de ejemplo)
+GET {{baseUrl}}/api/users/invitations/validate?token=REEMPLAZA_TOKEN
+
 
 ### Rate limit: 6 intentos fallidos (espera 429)
 POST {{baseUrl}}/api/auth/login
