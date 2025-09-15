@@ -5,7 +5,7 @@ from hashlib import sha256
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from sqlalchemy.orm import Session
 
 from ..core.database import session_scope
@@ -51,3 +51,16 @@ def mark_accepted(inv: UserInvitationORM) -> None:
             obj.accepted_at = datetime.utcnow()
             session.add(obj)
 
+
+def get_latest_pending_invitation(org_id: str, email: str) -> Optional[UserInvitationORM]:
+    """Returns the latest non-accepted invitation for an email within an org."""
+    with session_scope() as session:  # type: Session
+        stmt = (
+            select(UserInvitationORM)
+            .where(UserInvitationORM.org_id == org_id)
+            .where(UserInvitationORM.email == email)
+            .where(UserInvitationORM.accepted_at.is_(None))
+            .order_by(desc(UserInvitationORM.created_at))
+            .limit(1)
+        )
+        return session.execute(stmt).scalar_one_or_none()

@@ -112,7 +112,41 @@ Content-Type: application/json
 }
 
 ### Users: listar usuarios (admin)
-GET {{baseUrl}}/api/users
+GET {{baseUrl}}/api/users?limit=10&offset=0
+Authorization: Bearer {{accessToken}}
+
+### Users: listar usuarios (página 2)
+GET {{baseUrl}}/api/users?limit=10&offset=10
+Authorization: Bearer {{accessToken}}
+
+### Users: actualizar nombre y rol (happy path)
+# Ajusta {user_id} a un ID existente devuelto por el listado
+PATCH {{baseUrl}}/api/users/{user_id}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Nombre Actualizado",
+  "role": "responsable"
+}
+
+### Users: suspender usuario (happy path)
+# Ajusta {user_id} a un ID existente
+POST {{baseUrl}}/api/users/{user_id}/suspend
+Authorization: Bearer {{accessToken}}
+
+### Users: eliminar usuario (happy path)
+# Ajusta {user_id} a un ID existente (usa un usuario de pruebas)
+DELETE {{baseUrl}}/api/users/{user_id}
+Authorization: Bearer {{accessToken}}
+
+### Users: reenviar invitación si pending (si no caducó, reutiliza)
+# Ajusta {user_id} de un usuario con estado pending
+POST {{baseUrl}}/api/users/{user_id}/resend-invitation
+Authorization: Bearer {{accessToken}}
+
+### Users: reenviar invitación para usuario activo (debe 400)
+POST {{baseUrl}}/api/users/{active_user_id}/resend-invitation
 Authorization: Bearer {{accessToken}}
 
 ### Users: password policy (get)

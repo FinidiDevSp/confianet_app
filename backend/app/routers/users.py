@@ -4,12 +4,12 @@ from typing import Any, Optional
 from uuid import uuid4
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Query
 from pydantic import BaseModel, EmailStr, Field
 
 from ..core.deps import require_roles
 from ..models.auth import MeResponse, Role
-from ..repositories.invitations import create_invitation, get_invitation, mark_accepted
+from ..repositories.invitations import create_invitation, get_invitation, mark_accepted, get_latest_pending_invitation
 from ..repositories.password_policy import get_policy, update_policy
 from ..core.security import hash_password, validate_password_policy
 from ..repositories.users import users_repo
@@ -39,7 +39,8 @@ def invite_user(payload: InvitePayload, me: MeResponse = Depends(require_roles(R
                 email=payload.email,
                 name=payload.name,
                 role=payload.role.value,
-                status='suspended',
+                # New invited users are marked as pending until they set password
+                status='pending',
                 mfa_enabled='0',
                 created_at=datetime.utcnow(),
                 password_hash=None,
@@ -101,13 +102,27 @@ class UpdateUserPayload(BaseModel):
 
 
 @router.get("", response_model=list[dict[str, Any]])
-def list_users(me: MeResponse = Depends(require_roles(Role.admin))) -> list[dict[str, Any]]:
-    # Minimal listing with SQL to avoid new repo method
+def list_users(
+    limit: int = Query(25, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    me: MeResponse = Depends(require_roles(Role.admin)),
+) -> list[dict[str, Any]]:
+    # Minimal listing with SQL; compute 'pending' if password_hash is NULL
     from sqlalchemy import text
     from ..core.database import engine
-    sql = text("SELECT id, org_id, email, name, role, status, created_at FROM users ORDER BY created_at DESC LIMIT 100")
+    sql = text(
+        """
+        SELECT id, org_id, email, name, role,
+               CASE WHEN password_hash IS NULL THEN 'pending' ELSE status END AS status,
+               created_at
+        FROM users
+        WHERE org_id = :org_id
+        ORDER BY created_at DESC
+        LIMIT :limit OFFSET :offset
+        """
+    )
     with engine.connect() as conn:
-        rows = conn.execute(sql).mappings().all()
+        rows = conn.execute(sql, {"limit": limit, "offset": offset, "org_id": me.org_id}).mappings().all()
     return [dict(r) for r in rows]
 
 
@@ -137,6 +152,43 @@ def suspend_user(user_id: str, me: MeResponse = Depends(require_roles(Role.admin
         session.add(obj)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_user(user_id: str, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
+    with session_scope() as session:
+        obj = session.get(UserORM, user_id)
+        if not obj:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+        session.delete(obj)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{user_id}/resend-invitation")
+def resend_invitation(user_id: str, me: MeResponse = Depends(require_roles(Role.admin))) -> dict[str, Any]:
+    # Only for users without password (pending)
+    with session_scope() as session:
+        obj = session.get(UserORM, user_id)
+        if not obj:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+        if obj.org_id != me.org_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        if obj.password_hash is not None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El usuario ya activó su cuenta")
+        email = obj.email
+        name = obj.name
+        role = obj.role
+
+    # Check latest invitation status
+    from datetime import datetime
+    latest = get_latest_pending_invitation(me.org_id, email)
+    if latest and latest.expires_at >= datetime.utcnow():
+        # We cannot reconstruct the raw token from its hash; indicate reuse.
+        return {"reused": True, "invitation_url": None, "expires_at": latest.expires_at.isoformat()}
+
+    # Otherwise, create a new invitation
+    token, expires = create_invitation(org_id=me.org_id, invited_by=str(me.id), email=email, name=name, role=role)
+    link = f"http://localhost:3000/auth-signup-basic?token={token}&email={email}&name={name or ''}"
+    return {"reused": False, "invitation_url": link, "expires_at": expires.isoformat()}
 
 class PasswordPolicyPayload(BaseModel):
     min_length: int = 10
