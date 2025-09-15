@@ -109,6 +109,19 @@ const UsersAdmin: React.FC = () => {
     }
   };
 
+  const confirmActivate = async () => {
+    if (!targetUser) return;
+    try {
+      await axios.patch(`/api/users/${targetUser.id}`, { status: 'active' });
+      setMessage('Usuario activado');
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo activar');
+    } finally {
+      closeConfirm();
+    }
+  };
+
   const onResendInvitation = async (u: UserRow) => {
     try {
       const res: any = await axios.post(`/api/users/${u.id}/resend-invitation`);
@@ -215,9 +228,15 @@ const UsersAdmin: React.FC = () => {
                               <Button size="sm" color="light" aria-label="Editar" title="Editar" onClick={() => startEdit(u)}>
                                 <FeatherIcon icon="edit-2" className="icon-sm" />
                               </Button>{' '}
-                              <Button size="sm" color="danger" aria-label="Eliminar o suspender" title="Eliminar o suspender" onClick={() => openConfirm(u)}>
-                                <FeatherIcon icon="trash-2" className="icon-sm" />
-                              </Button>{' '}
+                              {u.status === 'suspended' ? (
+                                <Button size="sm" color="success" aria-label="Activar" title="Activar" onClick={() => openConfirm(u)}>
+                                  <FeatherIcon icon="user-check" className="icon-sm" />
+                                </Button>
+                              ) : (
+                                <Button size="sm" color="warning" aria-label="Suspender o eliminar" title="Suspender o eliminar" onClick={() => openConfirm(u)}>
+                                  <FeatherIcon icon="user-x" className="icon-sm" />
+                                </Button>
+                              )}{' '}
                               {u.status === 'pending' && (
                                 <Button size="sm" color="info" aria-label="Reenviar invitacion" title="Reenviar invitacion" onClick={() => onResendInvitation(u)}>
                                   <FeatherIcon icon="send" className="icon-sm" />
@@ -249,7 +268,7 @@ const UsersAdmin: React.FC = () => {
             </Card>
           </Col>
         </Row>
-        <Modal isOpen={confirmOpen} toggle={closeConfirm} centered>
+        <Modal isOpen={confirmOpen} toggle={closeConfirm} centered className="modal-dialog-centered">
           <ModalHeader toggle={closeConfirm}>Confirmar acción</ModalHeader>
           <ModalBody>
             {targetUser ? (
@@ -260,9 +279,15 @@ const UsersAdmin: React.FC = () => {
             ) : null}
           </ModalBody>
           <ModalFooter>
-            <Button color="warning" onClick={confirmSuspend}>
-              <FeatherIcon icon="pause-circle" className="icon-sm me-1" /> Suspender
-            </Button>
+            {targetUser?.status === 'suspended' ? (
+              <Button color="success" onClick={confirmActivate}>
+                <FeatherIcon icon="user-check" className="icon-sm me-1" /> Activar
+              </Button>
+            ) : (
+              <Button color="warning" onClick={confirmSuspend}>
+                <FeatherIcon icon="pause-circle" className="icon-sm me-1" /> Suspender
+              </Button>
+            )}
             <Button color="danger" onClick={confirmDelete}>
               <FeatherIcon icon="trash-2" className="icon-sm me-1" /> Eliminar
             </Button>
