@@ -4,7 +4,7 @@ from typing import Any, Optional
 from uuid import uuid4
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
 from ..core.deps import require_roles
@@ -39,8 +39,8 @@ class AcceptInvitationPayload(BaseModel):
     password: str = Field(min_length=1)
 
 
-@router.post("/accept-invitation", status_code=status.HTTP_204_NO_CONTENT)
-def accept_invitation(payload: AcceptInvitationPayload) -> None:
+@router.post("/accept-invitation", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def accept_invitation(payload: AcceptInvitationPayload) -> Response:
     inv = get_invitation(payload.token)
     if not inv:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitación inválida")
@@ -75,7 +75,7 @@ def accept_invitation(payload: AcceptInvitationPayload) -> None:
             )
             session.add(user)
     mark_accepted(inv)
-    return None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 class UpdateUserPayload(BaseModel):
@@ -139,4 +139,3 @@ def get_password_policy(me: MeResponse = Depends(require_roles(Role.admin))) -> 
 def set_password_policy(payload: PasswordPolicyPayload, me: MeResponse = Depends(require_roles(Role.admin))) -> PasswordPolicyPayload:
     pol = update_policy(me.org_id, payload.min_length, payload.require_upper, payload.require_number, payload.require_symbol)
     return PasswordPolicyPayload(min_length=pol.min_length, require_upper=pol.require_upper, require_number=pol.require_number, require_symbol=pol.require_symbol)
-
