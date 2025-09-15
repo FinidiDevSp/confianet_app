@@ -68,6 +68,16 @@ async def login(request: Request, response: Response) -> TokenResponse:
             existing = users_repo.get_by_email(payload.email)
             org_for_log = getattr(existing, "org_id", None) if existing else None
             log_event("login_failed", org_id=org_for_log, actor_id=None, actor_role=None, target_type=None, target_id=None, metadata={"email": payload.email}, ip=client_ip, ip_salt=settings.ip_hash_salt)
+            # Special-case forbidden accounts: always show a clear message
+            if exc.status_code == status.HTTP_403_FORBIDDEN:
+                status_str = getattr(existing, "status", None) if existing else None
+                if status_str == "suspended":
+                    detail = "Tu cuenta está suspendida. Contacta al administrador."
+                elif status_str == "pending":
+                    detail = "Tu cuenta aún no está activada. Revisa tu email para completar el registro."
+                else:
+                    detail = "Cuenta no activa"
+                raise HTTPException(status_code=exc.status_code, detail=detail)
             # Include remaining attempts in message or show blocked info
             if remaining <= 0:
                 seconds = rate_limiter.force_block(key)

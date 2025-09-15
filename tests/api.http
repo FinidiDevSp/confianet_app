@@ -45,6 +45,16 @@ Content-Type: application/json
   "password": "wrong"
 }
 
+### Login (usuario suspendido -> 403)
+# Ajusta el email a uno suspendido en tu base de datos
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "suspendido@example.com",
+  "password": "{{password}}"
+}
+
 ### Me sin token (debe 401)
 GET {{baseUrl}}/api/auth/me
 
