@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Card, CardBody, Col, Container, Row, Form, FormFeedback, Input, Button } from 'reactstrap';
+import React, { useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Card, CardBody, Col, Container, Row, Form, FormFeedback, Input, Button, Alert } from 'reactstrap';
+import axios from 'axios';
 import ParticlesAuth from "../ParticlesAuth";
 
 //import images 
@@ -11,32 +12,49 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 
 const BasicSignUp = () => {
-    document.title = "Basic SignUp | Velzon - React Admin & Dashboard Template";
+    const navigate = useNavigate();
+    const { search } = useLocation();
+    const params = useMemo(() => new URLSearchParams(search), [search]);
+    const token = params.get('token') || '';
+    const emailPrefill = params.get('email') || '';
+    const namePrefill = params.get('name') || '';
+
+    document.title = "Crear contraseña | Confianet";
 
     const [passwordShow, setPasswordShow] = useState<boolean>(false);
+    const [message, setMessage] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     const validation: any = useFormik({
         // enableReinitialize : use this flag when initial values needs to be changed
         enableReinitialize: true,
 
         initialValues: {
-            email: '',
-            userName: '',
+            email: emailPrefill,
+            userName: namePrefill,
             password: '',
+            confirm: '',
         },
         validationSchema: Yup.object({
-            email: Yup.string().required("Please Enter Your Email")
-                .email("Please include an @ in the email address"),
-            userName: Yup.string().required("Please Enter Your Username"),
+            email: Yup.string().required("Correo requerido").email("Formato de correo inválido"),
+            userName: Yup.string().required("Nombre requerido"),
             password: Yup.string()
-                .min(8, 'Password must be at least 8 characters')
-                .matches(RegExp('(.*[a-z].*)'), 'At least lowercase letter')
-                .matches(RegExp('(.*[A-Z].*)'), 'At least uppercase letter')
-                .matches(RegExp('(.*[0-9].*)'), 'At least one number')
-                .required("Please Enter Passward")
+                .min(10, 'Mínimo 10 caracteres')
+                .matches(RegExp('(.*[A-Z].*)'), 'Debe incluir mayúscula')
+                .matches(RegExp('(.*[0-9].*)'), 'Debe incluir número')
+                .matches(RegExp('(.*[^A-Za-z0-9].*)'), 'Debe incluir símbolo')
+                .required("Contraseña requerida"),
+            confirm: Yup.string().oneOf([Yup.ref('password') as any], 'Las contraseñas no coinciden').required('Confirma tu contraseña'),
         }),
-        onSubmit: (values) => {
-            console.log("values", values)
+        onSubmit: async (values) => {
+            setError(null); setMessage(null);
+            try {
+                await axios.post('/api/users/accept-invitation', { token, password: values.password });
+                setMessage('Contraseña creada con éxito. Ya puedes iniciar sesión.');
+                setTimeout(() => navigate('/login'), 1500);
+            } catch (e: any) {
+                setError(e?.response?.data?.detail || e?.message || 'Error al crear contraseña');
+            }
         }
     });
 
@@ -65,9 +83,11 @@ const BasicSignUp = () => {
 
                                     <CardBody className="p-4">
                                         <div className="text-center mt-2">
-                                            <h5 className="text-primary">Create New Account</h5>
-                                            <p className="text-muted">Get your free velzon account now</p>
+                                            <h5 className="text-primary">Crear contraseña</h5>
+                                            <p className="text-muted">Completa tu alta en Confianet</p>
                                         </div>
+                                        {message && <Alert color="success" isOpen transition={{ timeout: 200 }}>{message}</Alert>}
+                                        {error && <Alert color="danger" isOpen transition={{ timeout: 200 }}>{error}</Alert>}
                                         <div className="p-2 mt-4">
                                         <Form onSubmit={(e) => {
                                                 e.preventDefault();
@@ -77,11 +97,12 @@ const BasicSignUp = () => {
 
                                                 <div className="mb-3">
                                                     <label htmlFor="useremail" className="form-label">Email <span className="text-danger">*</span></label>
-                                                    <Input type="email" className="form-control" id="useremail" placeholder="Enter email address"
+                                                    <Input type="email" className="form-control" id="useremail" placeholder="Correo electrónico"
                                                         name="email"
                                                         value={validation.values.email}
                                                         onBlur={validation.handleBlur}
                                                         onChange={validation.handleChange}
+                                                        disabled
                                                         invalid={validation.errors.email && validation.touched.email ? true : false}
                                                     />
                                                     {validation.errors.email && validation.touched.email ? (
@@ -89,9 +110,10 @@ const BasicSignUp = () => {
                                                     ) : null}
                                                 </div>
                                                 <div className="mb-3">
-                                                    <label htmlFor="username" className="form-label">Username <span className="text-danger">*</span></label>
-                                                    <Input type="text" className="form-control" id="username" placeholder="Enter username"
+                                                    <label htmlFor="username" className="form-label">Nombre <span className="text-danger">*</span></label>
+                                                    <Input type="text" className="form-control" id="username" placeholder="Nombre y apellidos"
                                                         name="userName"
+                                                        disabled
                                                         onChange={validation.handleChange}
                                                         onBlur={validation.handleBlur}
                                                         value={validation.values.userName || ""}
@@ -105,7 +127,7 @@ const BasicSignUp = () => {
                                                 </div>
 
                                                 <div className="mb-3">
-                                                    <label className="form-label" htmlFor="password-input">Password</label>
+                                                    <label className="form-label" htmlFor="password-input">Contraseña</label>
                                                     <div className="position-relative auth-pass-inputgroup">
                                                         <Input
                                                             type={passwordShow ? "text" : "password"}
@@ -126,9 +148,17 @@ const BasicSignUp = () => {
                                                     </div>
                                                 </div>
 
-                                                <div className="mb-4">
-                                                    <p className="mb-0 fs-12 text-muted fst-italic">By registering you agree to the Velzon
-                                                        <Link to="#" className="text-primary text-decoration-underline fst-normal fw-medium">Terms of Use</Link></p>
+                                                <div className="mb-3">
+                                                    <label htmlFor="confirm" className="form-label">Confirmar contraseña</label>
+                                                    <Input type="password" id="confirm" name="confirm" placeholder="Repite la contraseña"
+                                                        value={validation.values.confirm}
+                                                        onChange={validation.handleChange}
+                                                        onBlur={validation.handleBlur}
+                                                        invalid={validation.errors.confirm && validation.touched.confirm ? true : false}
+                                                    />
+                                                    {validation.errors.confirm && validation.touched.confirm ? (
+                                                        <FormFeedback type="invalid">{validation.errors.confirm}</FormFeedback>
+                                                    ) : null}
                                                 </div>
 
                                                 <div id="password-contain" className="p-3 bg-light mb-2 rounded">
@@ -140,7 +170,7 @@ const BasicSignUp = () => {
                                                 </div>
 
                                                 <div className="mt-4">
-                                                    <button className="btn btn-success w-100" type="submit">Sign Up</button>
+                                                    <button className="btn btn-success w-100" type="submit">Crear contraseña</button>
                                                 </div>
 
                                                 <div className="mt-4 text-center">

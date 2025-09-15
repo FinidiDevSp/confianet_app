@@ -172,12 +172,7 @@ const Navdata = () => {
                     link: "/dashboard",
                     parentId: "dashboard",
                 },
-                {
-                    id: "audit",
-                    label: "Auditoría",
-                    link: "/dashboard-audit",
-                    parentId: "dashboard",
-                },
+                
                 {
                     id: "crypto",
                     label: "Crypto",
@@ -1109,8 +1104,18 @@ const Navdata = () => {
                 },
             ],
         },
-    \];\n    try { const raw = sessionStorage.getItem('authUser'); const u = raw ? JSON.parse(raw) : null; const role = (u && (u.user?.role || u.role)) ? String(u.user?.role || u.role).toLowerCase() : ''; if (role === 'admin') { menuItems.splice(2, 0, { id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/admin/users' }); } } catch {}\n    return <React.Fragment>{menuItems}</React.Fragment>;
+    ];
+    try {
+        const raw = sessionStorage.getItem('authUser');
+        const u = raw ? JSON.parse(raw) : null;
+        const role = u && ((u.user && u.user.role) || u.role) ? String((u.user && u.user.role) || u.role).toLowerCase() : '';
+        if (role === 'admin') {
+            menuItems.splice(2, 0, { id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/admin/users' });
+        }
+    } catch (e) {}
+    return <React.Fragment>{menuItems}</React.Fragment>;
 };
 export default Navdata;
+
 
 

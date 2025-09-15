@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any, Optional
 from uuid import uuid4
@@ -29,8 +29,24 @@ class InvitePayload(BaseModel):
 @router.post("/invitations", status_code=status.HTTP_201_CREATED)
 def invite_user(payload: InvitePayload, me: MeResponse = Depends(require_roles(Role.admin))) -> dict[str, Any]:
     token, expires = create_invitation(org_id=me.org_id, invited_by=str(me.id), email=payload.email, name=payload.name, role=payload.role.value)
-    # In dev, return the link instead of sending email
-    link = f"http://localhost:3000/accept-invitation?token={token}"
+    # Ensure user exists in suspended (pending) state until password is set
+    with session_scope() as session:
+        existing = users_repo.get_by_email(payload.email)
+        if not existing:
+            u = UserORM(
+                id=str(uuid4()),
+                org_id=me.org_id,
+                email=payload.email,
+                name=payload.name,
+                role=payload.role.value,
+                status='suspended',
+                mfa_enabled='0',
+                created_at=datetime.utcnow(),
+                password_hash=None,
+            )
+            session.add(u)
+    # In dev, return the link to signup page with token and prefilled data
+    link = f"http://localhost:3000/auth-signup-basic?token={token}&email={payload.email}&name={payload.name or ''}"
     return {"invitation_url": link, "expires_at": expires.isoformat()}
 
 
@@ -43,9 +59,9 @@ class AcceptInvitationPayload(BaseModel):
 def accept_invitation(payload: AcceptInvitationPayload) -> Response:
     inv = get_invitation(payload.token)
     if not inv:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitación inválida")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="InvitaciÃ³n invÃ¡lida")
     if inv.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitación expirada")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de invitación ha caducado. Solicita una nueva invitación.")
     # Validate policy for org (fallback global)
     pol = get_policy(inv.org_id)
     msg = validate_password_policy(payload.password, pol.min_length, pol.require_upper, pol.require_number, pol.require_symbol)
@@ -95,8 +111,8 @@ def list_users(me: MeResponse = Depends(require_roles(Role.admin))) -> list[dict
     return [dict(r) for r in rows]
 
 
-@router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def update_user(user_id: str, payload: UpdateUserPayload, me: MeResponse = Depends(require_roles(Role.admin))) -> None:
+@router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def update_user(user_id: str, payload: UpdateUserPayload, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
     with session_scope() as session:
         obj = session.get(UserORM, user_id)
         if not obj:
@@ -108,18 +124,18 @@ def update_user(user_id: str, payload: UpdateUserPayload, me: MeResponse = Depen
         if payload.status is not None:
             obj.status = payload.status
         session.add(obj)
-    return None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{user_id}/suspend", status_code=status.HTTP_204_NO_CONTENT)
-def suspend_user(user_id: str, me: MeResponse = Depends(require_roles(Role.admin))) -> None:
+@router.post("/{user_id}/suspend", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def suspend_user(user_id: str, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
     with session_scope() as session:
         obj = session.get(UserORM, user_id)
         if not obj:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
         obj.status = 'suspended'
         session.add(obj)
-    return None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 class PasswordPolicyPayload(BaseModel):
@@ -139,3 +155,6 @@ def get_password_policy(me: MeResponse = Depends(require_roles(Role.admin))) -> 
 def set_password_policy(payload: PasswordPolicyPayload, me: MeResponse = Depends(require_roles(Role.admin))) -> PasswordPolicyPayload:
     pol = update_policy(me.org_id, payload.min_length, payload.require_upper, payload.require_number, payload.require_symbol)
     return PasswordPolicyPayload(min_length=pol.min_length, require_upper=pol.require_upper, require_number=pol.require_number, require_symbol=pol.require_symbol)
+
+
+
