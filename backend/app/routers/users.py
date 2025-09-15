@@ -39,8 +39,8 @@ def invite_user(payload: InvitePayload, me: MeResponse = Depends(require_roles(R
                 email=payload.email,
                 name=payload.name,
                 role=payload.role.value,
-                # New invited users are marked as pending until they set password
-                status='pending',
+                # Store as 'suspended' in DB (enum), UI will show 'pending' if password_hash IS NULL
+                status='suspended',
                 mfa_enabled='0',
                 created_at=datetime.utcnow(),
                 password_hash=None,
