@@ -35,7 +35,7 @@ axios.interceptors.response.use(
         message = detail || "Invalid credentials";
         break;
       case 403:
-        message = detail || "Forbidden";
+        message = detail || "Tu cuenta está suspendida o pendiente de activación";
         break;
       case 404:
         message = detail || "Not found";

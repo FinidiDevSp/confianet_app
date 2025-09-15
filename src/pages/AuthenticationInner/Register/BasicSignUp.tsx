@@ -62,6 +62,10 @@ const BasicSignUp = () => {
     return (
         <React.Fragment>
             <ParticlesAuth>
+                {/* Evita que el icono de validación se superponga al ojo en el password */}
+                <style>
+                    {`.auth-pass-inputgroup .is-invalid { background-image: none !important; }`}
+                </style>
                 <div className="auth-page-content mt-lg-5">
 
                     <Container>
