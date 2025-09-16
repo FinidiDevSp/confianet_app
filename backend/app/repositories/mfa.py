@@ -21,7 +21,7 @@ def ensure_mfa_table() -> None:
         )
         """
     )
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         conn.execute(text(ddl))
 
 
@@ -48,14 +48,14 @@ def upsert_mfa(user_id: str, secret_enc: str, recovery_codes_enc: str, enabled: 
             enabled=VALUES(enabled)
         """
     )
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         conn.execute(sql, {"user_id": user_id, "secret_enc": secret_enc, "rc": recovery_codes_enc, "enabled": 1 if enabled else 0, "created_at": now})
 
 
 def set_enabled(user_id: str, enabled: bool) -> None:
     ensure_mfa_table()
     sql = text("UPDATE user_mfa SET enabled=:en WHERE user_id=:uid")
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         conn.execute(sql, {"uid": user_id, "en": 1 if enabled else 0})
 
 
@@ -68,4 +68,3 @@ def consume_recovery_code(user_id: str, code: str) -> bool:
     except Exception:
         # We store encrypted JSON; caller should decrypt before calling this util, so this function not used directly
         return False
-

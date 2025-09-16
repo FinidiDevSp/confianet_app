@@ -182,7 +182,7 @@ def mfa_verify(payload: MfaVerifyRequest, request: Request, response: Response) 
             from ..core.crypto import encrypt_str
             from sqlalchemy import text
             from ..core.database import engine
-            with engine.connect() as conn:
+            with engine.begin() as conn:
                 conn.execute(text("UPDATE user_mfa SET recovery_codes_enc=:rc WHERE user_id=:uid"), {"rc": encrypt_str(_json.dumps(recovery_codes)), "uid": user_id})
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing code")

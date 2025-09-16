@@ -22,7 +22,8 @@ def ensure_table() -> None:
         )
         """
     )
-    with engine.connect() as conn:
+    # DDL auto-commits on MySQL, but ensure transaction boundary
+    with engine.begin() as conn:
         conn.execute(text(ddl))
 
 
@@ -37,7 +38,8 @@ def set_json(org_id: str, key: str, value: dict[str, Any]) -> None:
         ON DUPLICATE KEY UPDATE value_enc=VALUES(value_enc), updated_at=VALUES(updated_at)
         """
     )
-    with engine.connect() as conn:
+    # Use transactional connection to persist changes
+    with engine.begin() as conn:
         conn.execute(sql, {"org_id": org_id, "key": key, "val": payload, "ts": now})
 
 
@@ -55,4 +57,3 @@ def get_json(org_id: str, key: str) -> Optional[dict[str, Any]]:
     except Exception:
         return None
     return None
-
