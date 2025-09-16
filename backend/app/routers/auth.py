@@ -16,8 +16,12 @@ from ..repositories.refresh_tokens import is_refresh_token_valid, revoke_refresh
 from ..repositories.audit import log_event
 from ..core.rate_limit import rate_limiter
 from ..repositories.mfa import get_mfa
-from ..core.crypto import decrypt_str
+from ..core.crypto import decrypt_str, encrypt_str
 import pyotp
+import qrcode
+import io
+import base64
+import json as _json
 
 router = APIRouter()
 
@@ -196,6 +200,75 @@ def mfa_verify(payload: MfaVerifyRequest, request: Request, response: Response) 
     set_refresh_cookie(response, refresh)
     log_event("2fa.login.success", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type=None, target_id=None, metadata=None, ip=client_ip, ip_salt=settings.ip_hash_salt)
     return TokenResponse(access_token=access, user=me)
+
+
+class MfaSetupStartPayload(BaseModel):
+    mfa_token: str
+
+
+class MfaStartResponse(BaseModel):
+    secret: str
+    otpauth_url: str
+    qr_data_url: str
+
+
+@router.post("/mfa/setup/start", response_model=MfaStartResponse)
+def mfa_setup_start_from_mfa(payload: MfaSetupStartPayload) -> MfaStartResponse:
+    data = decode_jwt(payload.mfa_token)
+    if not data or data.get("type") != "mfa":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid MFA token")
+    user_id = str(data["sub"])
+    me = me_from_user_id(user_id)
+    if not me:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    from ..repositories.mfa import get_mfa
+    # If already configured, block setup here
+    rec = get_mfa(user_id)
+    if rec and rec.get("enabled"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MFA already configured")
+    # Generate secret and QR
+    secret = pyotp.random_base32()
+    issuer = "Confianet"
+    label = f"{me.email}"
+    otpauth_url = pyotp.totp.TOTP(secret).provisioning_uri(name=label, issuer_name=issuer)
+    img = qrcode.make(otpauth_url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    data_url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
+    return MfaStartResponse(secret=secret, otpauth_url=otpauth_url, qr_data_url=data_url)
+
+
+class MfaSetupConfirmPayload(BaseModel):
+    mfa_token: str
+    secret: str
+    code: str
+
+
+class MfaConfirmResponse(BaseModel):
+    recovery_codes: list[str]
+
+
+@router.post("/mfa/setup/confirm", response_model=MfaConfirmResponse)
+def mfa_setup_confirm_from_mfa(payload: MfaSetupConfirmPayload) -> MfaConfirmResponse:
+    data = decode_jwt(payload.mfa_token)
+    if not data or data.get("type") != "mfa":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid MFA token")
+    user_id = str(data["sub"])
+    me = me_from_user_id(user_id)
+    if not me:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    totp = pyotp.TOTP(payload.secret)
+    if not totp.verify(payload.code, valid_window=1):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Código 2FA inválido")
+    # Generate recovery codes and persist
+    recovery = [base64.urlsafe_b64encode(__import__('os').urandom(9)).decode('utf-8')[:10] for _ in range(10)]
+    secret_enc = encrypt_str(payload.secret)
+    recovery_enc = encrypt_str(_json.dumps(recovery))
+    from ..repositories.mfa import upsert_mfa
+    upsert_mfa(user_id=user_id, secret_enc=secret_enc, recovery_codes_enc=recovery_enc, enabled=True)
+    # Audit
+    log_event("2fa.enabled", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type=None, target_id=None, metadata=None, ip=None, ip_salt=settings.ip_hash_salt)
+    return MfaConfirmResponse(recovery_codes=recovery)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

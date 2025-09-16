@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardBody, Col, Container, Input, Label, Row, Button, Form, FormFeedback, Alert, Spinner } from 'reactstrap';
+import axios from 'axios';
 import ParticlesAuth from "../AuthenticationInner/ParticlesAuth";
 
 //redux
@@ -92,6 +93,8 @@ const Login = (props: any) => {
     }, [dispatch, errorMsg]);
 
     const [mfaCode, setMfaCode] = useState<string>("");
+    const [mfaSetupSecret, setMfaSetupSecret] = useState<string>("");
+    const [mfaSetupQr, setMfaSetupQr] = useState<string>("");
     document.title = "Basic SignIn | Velzon - React Admin & Dashboard Template";
     return (
         <React.Fragment>
@@ -187,6 +190,39 @@ const Login = (props: any) => {
                                                         const mod: any = require('../../slices/auth/login/thunk');
                                                         dispatch(mod.verifyMfa(mfaToken, mfaCode, undefined, props.router.navigate));
                                                       }}>Verificar 2FA</Button>
+                                                    </div>
+                                                    <hr />
+                                                    <div className="mt-2">
+                                                      <p className="mb-2">¿Es tu primer acceso con 2FA? Configura el código con un QR:</p>
+                                                      {!mfaSetupQr ? (
+                                                        <Button color="secondary" type="button" onClick={async () => {
+                                                          if (!mfaToken) return;
+                                                          try {
+                                                            const res: any = await axios.post('/api/auth/mfa/setup/start', { mfa_token: mfaToken });
+                                                            setMfaSetupSecret(res.secret);
+                                                            setMfaSetupQr(res.qr_data_url);
+                                                          } catch (e:any) {
+                                                            // ignore or show error
+                                                          }
+                                                        }}>Generar QR</Button>
+                                                      ) : (
+                                                        <div>
+                                                          <img alt="QR 2FA" src={mfaSetupQr} style={{ maxWidth: 200 }} />
+                                                          <div className="mt-2">
+                                                            <Label className="form-label">Código de 6 dígitos de tu app</Label>
+                                                            <Input placeholder="123456" value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} />
+                                                            <Button className="mt-2" color="success" type="button" onClick={async () => {
+                                                              if (!mfaToken || !mfaSetupSecret || !mfaCode) return;
+                                                              try {
+                                                                const res: any = await axios.post('/api/auth/mfa/setup/confirm', { mfa_token: mfaToken, secret: mfaSetupSecret, code: mfaCode });
+                                                                // Después de confirmar, valida 2FA para emitir tokens
+                                                                const mod: any = require('../../slices/auth/login/thunk');
+                                                                dispatch(mod.verifyMfa(mfaToken, mfaCode, undefined, props.router.navigate));
+                                                              } catch (e:any) {}
+                                                            }}>Confirmar 2FA</Button>
+                                                          </div>
+                                                        </div>
+                                                      )}
                                                     </div>
                                                   </div>
                                                 )}
