@@ -280,12 +280,12 @@ Authorization: Bearer {{accessToken}}
 DELETE {{baseUrl}}/api/users/{user_id}
 Authorization: Bearer {{accessToken}}
 
-### Users: reenviar invitaciÃ³n si pending (si no caducÃ³, reutiliza)
-# Ajusta {user_id} de un usuario con estado pending
+# Users: reenviar invitación (limita por rate limit e idempotencia)
+# Ajusta {user_id} de un usuario con estado pending. Devuelve reused/idempotent y el enlace cuando corresponde.
 POST {{baseUrl}}/api/users/{user_id}/resend-invitation
 Authorization: Bearer {{accessToken}}
 
-### Users: reenviar invitaciÃ³n para usuario activo (debe 400)
+# Users: reenviar invitación para usuario activo (debe 400)
 POST {{baseUrl}}/api/users/{active_user_id}/resend-invitation
 Authorization: Bearer {{accessToken}}
 
@@ -307,6 +307,75 @@ Content-Type: application/json
 
 ### Users: validar invitaciÃ³n (token de ejemplo)
 GET {{baseUrl}}/api/users/invitations/validate?token=REEMPLAZA_TOKEN
+
+
+### Settings: obtener plantillas y marca blanca
+GET {{baseUrl}}/api/settings/email/templates
+Authorization: Bearer {{accessToken}}
+
+### Settings: actualizar plantilla de invitaciÃ³n
+PUT {{baseUrl}}/api/settings/email/templates/user_invitation
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "subject_template": "{{ organization_name }} te espera, {{ invitee_name }}",
+  "body_html": "<p>Hola {{ invitee_name }},</p><p>Usa el siguiente enlace: <a class=\"button\" href=\"{{ invite_link }}\">Acceder</a></p><p>Caduca el {{ expires_at }}.</p>"
+}
+
+### Settings: vista previa de la plantilla de invitaciÃ³n
+POST {{baseUrl}}/api/settings/email/templates/user_invitation/preview
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "variables": {
+    "invitee_name": "Equipo QA"
+  }
+}
+
+### Settings: actualizar marca blanca
+PATCH {{baseUrl}}/api/settings/email/templates/branding
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "brand_name": "Confianet QA",
+  "logo_url": "https://static.example.com/logo.png",
+  "primary_color": "#0f172a",
+  "button_text_color": "#ffffff",
+  "footer_text": "© {{ brand.brand_name }}"
+}
+
+### Settings: enviar email de prueba (requiere SMTP configurado)
+POST {{baseUrl}}/api/settings/email/test
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "to_email": "qa@example.com",
+  "template_id": "user_invitation"
+}
+
+### Settings: obtener webhook de eventos
+GET {{baseUrl}}/api/settings/webhooks
+Authorization: Bearer {{accessToken}}
+
+### Settings: configurar webhook de eventos
+PUT {{baseUrl}}/api/settings/webhooks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "url": "https://integraciones.example.com/confianet/webhook",
+  "secret": "demo-secret",
+  "enabled_events": [
+    "user.invited",
+    "user.activated",
+    "user.suspended"
+  ],
+  "enabled": true
+}
 
 
 ### Rate limit: 6 intentos fallidos (espera 429)

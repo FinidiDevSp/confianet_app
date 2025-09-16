@@ -1,10 +1,49 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Button, Card, CardBody, Col, Container, Form, Input, Label, Nav, NavItem, NavLink, Row, Spinner, TabContent, TabPane } from 'reactstrap';
+import { Alert, Badge, Button, Card, CardBody, CardHeader, Col, Container, Form, FormGroup, FormText, Input, Label, ListGroup, ListGroupItem, Nav, NavItem, NavLink, Row, Spinner, TabContent, TabPane } from 'reactstrap';
 import axios from 'axios';
 import { getLoggedinUser, setAuthorization } from '../../helpers/api_helper';
 
 type PasswordPolicy = { min_length: number; require_upper: boolean; require_number: boolean; require_symbol: boolean };
 type EmailSettings = { smtp_host: string; smtp_port: number; username?: string | null; has_password?: boolean; use_tls: boolean; use_ssl: boolean; from_name: string; from_email: string };
+
+type EmailTemplate = {
+  id: string;
+  name: string;
+  description?: string | null;
+  subject_template: string;
+  body_html: string;
+  allowed_variables: string[];
+  sample_context: Record<string, unknown>;
+  updated_at?: string | null;
+};
+
+type EmailBrandingState = {
+  brand_name: string;
+  logo_url?: string | null;
+  primary_color: string;
+  button_text_color: string;
+  footer_text?: string | null;
+};
+
+type EmailTemplatesResponse = {
+  branding: EmailBrandingState;
+  templates: EmailTemplate[];
+};
+
+type EmailTestLog = { level: string; message: string; timestamp: string };
+
+type EmailTestResult = { success: boolean; idempotent: boolean; detail?: string | null };
+
+type EmailTestResponse = EmailTestResult & { logs: EmailTestLog[] };
+
+type WebhookSettingsState = {
+  url?: string | null;
+  secret?: string | null;
+  enabled_events: string[];
+  enabled: boolean;
+};
+
+const AVAILABLE_WEBHOOK_EVENTS = ['user.invited', 'user.activated', 'user.suspended'];
 
 const AdminSettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'policy' | 'email'>('policy');
@@ -15,6 +54,21 @@ const AdminSettings: React.FC = () => {
   const [policy, setPolicy] = useState<PasswordPolicy>({ min_length: 12, require_upper: true, require_number: true, require_symbol: true });
   const [emailCfg, setEmailCfg] = useState<EmailSettings>({ smtp_host: '', smtp_port: 587, username: '', has_password: false, use_tls: true, use_ssl: false, from_name: 'Confianet', from_email: '' });
   const [emailPassword, setEmailPassword] = useState<string>('');
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [branding, setBranding] = useState<EmailBrandingState>({ brand_name: 'Confianet', logo_url: '', primary_color: '#1F2937', button_text_color: '#FFFFFF', footer_text: '' });
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('user_invitation');
+  const [templateSubject, setTemplateSubject] = useState<string>('');
+  const [templateBody, setTemplateBody] = useState<string>('');
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [brandingSaving, setBrandingSaving] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string>('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [testEmail, setTestEmail] = useState<string>('');
+  const [testSending, setTestSending] = useState(false);
+  const [testLogs, setTestLogs] = useState<EmailTestLog[]>([]);
+  const [testResult, setTestResult] = useState<EmailTestResult | null>(null);
+  const [webhook, setWebhook] = useState<WebhookSettingsState>({ url: '', secret: '', enabled_events: [...AVAILABLE_WEBHOOK_EVENTS], enabled: false });
+  const [webhookSaving, setWebhookSaving] = useState(false);
 
   useEffect(() => {
     try {
@@ -29,6 +83,29 @@ const AdminSettings: React.FC = () => {
         setPolicy(pol as unknown as PasswordPolicy);
         const mail = await axios.get<EmailSettings>('/api/settings/email');
         setEmailCfg(mail as unknown as EmailSettings);
+        setTestEmail((mail as unknown as EmailSettings).from_email || '');
+        const tpl = await axios.get<EmailTemplatesResponse>('/api/settings/email/templates');
+        const templatesData = tpl as unknown as EmailTemplatesResponse;
+        setTemplates(templatesData.templates);
+        setBranding(templatesData.branding);
+        if (templatesData.templates.length > 0) {
+          const template = templatesData.templates.find(t => t.id === selectedTemplateId) || templatesData.templates[0];
+          setSelectedTemplateId(template.id);
+          setTemplateSubject(template.subject_template);
+          setTemplateBody(template.body_html);
+        } else {
+          setSelectedTemplateId('user_invitation');
+          setTemplateSubject('');
+          setTemplateBody('');
+        }
+        const webhookSettings = await axios.get<WebhookSettingsState & { url?: string | null; secret?: string | null }>('/api/settings/webhooks');
+        const whData = webhookSettings as unknown as WebhookSettingsState & { url?: string | null; secret?: string | null };
+        setWebhook({
+          url: whData.url ?? '',
+          secret: whData.secret ?? '',
+          enabled_events: whData.enabled_events?.length ? whData.enabled_events : [...AVAILABLE_WEBHOOK_EVENTS],
+          enabled: whData.enabled,
+        });
       } catch (e: any) {
         setError(e?.message || 'Error cargando configuración');
       } finally {
@@ -68,6 +145,142 @@ const AdminSettings: React.FC = () => {
       setMessage('Configuración de correo guardada');
     } catch (err: any) {
       setError(err?.message || 'No se pudo guardar el correo');
+    }
+  };
+
+  const activeTemplate = templates.find(t => t.id === selectedTemplateId) || null;
+
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const tpl = templates.find(t => t.id === templateId);
+    if (tpl) {
+      setTemplateSubject(tpl.subject_template);
+      setTemplateBody(tpl.body_html);
+    } else {
+      setTemplateSubject('');
+      setTemplateBody('');
+    }
+    setPreviewHtml('');
+  };
+
+  const handleTemplateSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedTemplateId) {
+      return;
+    }
+    setTemplateSaving(true);
+    setMessage(null); setError(null);
+    try {
+      const updated = await axios.put<EmailTemplate>(`/api/settings/email/templates/${selectedTemplateId}`, {
+        subject_template: templateSubject,
+        body_html: templateBody,
+      });
+      const tpl = updated as unknown as EmailTemplate;
+      setTemplates(prev => prev.map(item => (item.id === tpl.id ? tpl : item)));
+      setTemplateSubject(tpl.subject_template);
+      setTemplateBody(tpl.body_html);
+      setMessage('Plantilla actualizada');
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo guardar la plantilla');
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
+
+  const handlePreviewTemplate = async () => {
+    if (!selectedTemplateId) {
+      return;
+    }
+    setPreviewLoading(true);
+    setError(null);
+    try {
+      const preview = await axios.post<{ subject: string; html: string }>(`/api/settings/email/templates/${selectedTemplateId}/preview`, { variables: {} });
+      const data = preview as unknown as { subject: string; html: string };
+      setPreviewHtml(`<h4 style="margin-top:0">${data.subject}</h4>${data.html}`);
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo generar la vista previa');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleBrandingSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBrandingSaving(true);
+    setMessage(null); setError(null);
+    try {
+      const updated = await axios.patch<EmailBrandingState>('/api/settings/email/templates/branding', branding);
+      setBranding(updated as unknown as EmailBrandingState);
+      setMessage('Marca blanca actualizada');
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo actualizar la marca');
+    } finally {
+      setBrandingSaving(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!testEmail) {
+      setError('Ingresa un correo de destino para la prueba');
+      return;
+    }
+    setTestSending(true);
+    setTestLogs([]);
+    setTestResult(null);
+    setMessage(null); setError(null);
+    try {
+      const response = await axios.post<EmailTestResponse>('/api/settings/email/test', {
+        to_email: testEmail,
+        template_id: selectedTemplateId,
+      });
+      const data = response as unknown as EmailTestResponse;
+      setTestLogs(data.logs || []);
+      setTestResult({ success: data.success, idempotent: data.idempotent, detail: data.detail });
+      if (data.success) {
+        setMessage('Correo de prueba enviado');
+      } else if (data.detail) {
+        setError(data.detail);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo enviar el correo de prueba');
+    } finally {
+      setTestSending(false);
+    }
+  };
+
+  const toggleWebhookEvent = (eventKey: string, checked: boolean) => {
+    setWebhook(prev => ({
+      ...prev,
+      enabled_events: checked
+        ? Array.from(new Set([...(prev.enabled_events || []), eventKey]))
+        : (prev.enabled_events || []).filter(item => item !== eventKey),
+    }));
+  };
+
+  const handleWebhookSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setWebhookSaving(true);
+    setMessage(null); setError(null);
+    try {
+      const payload = {
+        url: webhook.url?.trim() || null,
+        secret: webhook.secret?.trim() || null,
+        enabled_events: webhook.enabled_events,
+        enabled: webhook.enabled,
+      };
+      const saved = await axios.put<WebhookSettingsState & { url?: string | null; secret?: string | null }>('/api/settings/webhooks', payload);
+      const data = saved as unknown as WebhookSettingsState & { url?: string | null; secret?: string | null };
+      setWebhook({
+        url: data.url ?? '',
+        secret: data.secret ?? '',
+        enabled_events: data.enabled_events?.length ? data.enabled_events : [...AVAILABLE_WEBHOOK_EVENTS],
+        enabled: data.enabled,
+      });
+      setMessage('Webhook actualizado');
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo guardar el webhook');
+    } finally {
+      setWebhookSaving(false);
     }
   };
 
@@ -111,21 +324,171 @@ const AdminSettings: React.FC = () => {
                 </CardBody></Card>
               </TabPane>
               <TabPane tabId="email">
-                <Card><CardBody>
-                  <Form onSubmit={saveEmail}>
-                    <Row className="g-3">
-                      <Col md={4}><Label>Servidor SMTP</Label><Input value={emailCfg.smtp_host} onChange={e => setEmailCfg({ ...emailCfg, smtp_host: e.target.value })} required /></Col>
-                      <Col md={2}><Label>Puerto</Label><Input type="number" value={emailCfg.smtp_port} onChange={e => setEmailCfg({ ...emailCfg, smtp_port: parseInt(e.target.value || '0', 10) })} required /></Col>
-                      <Col md={3}><Label>Usuario</Label><Input value={emailCfg.username || ''} onChange={e => setEmailCfg({ ...emailCfg, username: e.target.value })} /></Col>
-                      <Col md={3}><Label>Contraseña</Label><Input type="password" placeholder={emailCfg.has_password ? '••••••' : ''} value={emailPassword} onChange={e => setEmailPassword(e.target.value)} /></Col>
-                      <Col md={3}><Label>Remitente (nombre)</Label><Input value={emailCfg.from_name} onChange={e => setEmailCfg({ ...emailCfg, from_name: e.target.value })} required /></Col>
-                      <Col md={4}><Label>Remitente (email)</Label><Input type="email" value={emailCfg.from_email} onChange={e => setEmailCfg({ ...emailCfg, from_email: e.target.value })} required /></Col>
-                      <Col md={2}><div className="form-check mt-4"><Input className="form-check-input" type="checkbox" checked={emailCfg.use_tls} onChange={e => setEmailCfg({ ...emailCfg, use_tls: e.target.checked })} id="tls" /><Label className="form-check-label" htmlFor="tls">TLS</Label></div></Col>
-                      <Col md={2}><div className="form-check mt-4"><Input className="form-check-input" type="checkbox" checked={emailCfg.use_ssl} onChange={e => setEmailCfg({ ...emailCfg, use_ssl: e.target.checked })} id="ssl" /><Label className="form-check-label" htmlFor="ssl">SSL</Label></div></Col>
-                      <Col md={3} className="mt-4"><Button color="primary" type="submit">Guardar correo</Button></Col>
+                <Card>
+                  <CardBody>
+                    <Form onSubmit={saveEmail}>
+                      <Row className="g-3">
+                        <Col md={4}><Label>Servidor SMTP</Label><Input value={emailCfg.smtp_host} onChange={e => setEmailCfg({ ...emailCfg, smtp_host: e.target.value })} required /></Col>
+                        <Col md={2}><Label>Puerto</Label><Input type="number" value={emailCfg.smtp_port} onChange={e => setEmailCfg({ ...emailCfg, smtp_port: parseInt(e.target.value || '0', 10) })} required /></Col>
+                        <Col md={3}><Label>Usuario</Label><Input value={emailCfg.username || ''} onChange={e => setEmailCfg({ ...emailCfg, username: e.target.value })} /></Col>
+                        <Col md={3}><Label>Contraseña</Label><Input type="password" placeholder={emailCfg.has_password ? '••••••' : ''} value={emailPassword} onChange={e => setEmailPassword(e.target.value)} /></Col>
+                        <Col md={3}><Label>Remitente (nombre)</Label><Input value={emailCfg.from_name} onChange={e => setEmailCfg({ ...emailCfg, from_name: e.target.value })} required /></Col>
+                        <Col md={4}><Label>Remitente (email)</Label><Input type="email" value={emailCfg.from_email} onChange={e => setEmailCfg({ ...emailCfg, from_email: e.target.value })} required /></Col>
+                        <Col md={2}><div className="form-check mt-4"><Input className="form-check-input" type="checkbox" checked={emailCfg.use_tls} onChange={e => setEmailCfg({ ...emailCfg, use_tls: e.target.checked })} id="tls" /><Label className="form-check-label" htmlFor="tls">TLS</Label></div></Col>
+                        <Col md={2}><div className="form-check mt-4"><Input className="form-check-input" type="checkbox" checked={emailCfg.use_ssl} onChange={e => setEmailCfg({ ...emailCfg, use_ssl: e.target.checked })} id="ssl" /><Label className="form-check-label" htmlFor="ssl">SSL</Label></div></Col>
+                        <Col md={3} className="mt-4 d-flex align-items-end"><Button color="primary" type="submit">Guardar correo</Button></Col>
+                      </Row>
+                    </Form>
+                    <hr className="my-4" />
+                    <h6 className="mb-3">Enviar email de prueba</h6>
+                    <Row className="g-3 align-items-end">
+                      <Col md={4}><Label>Destinatario</Label><Input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="admin@tu-dominio.com" required /></Col>
+                      <Col md={4}>
+                        <Label>Plantilla</Label>
+                        <Input type="select" value={selectedTemplateId} onChange={e => handleTemplateSelect(e.target.value)}>
+                          {templates.length === 0 && <option value="user_invitation">user_invitation</option>}
+                          {templates.map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </Input>
+                      </Col>
+                      <Col md={3} className="mt-3 mt-md-0">
+                        <Button color="secondary" type="button" onClick={handleSendTestEmail} disabled={testSending}>
+                          {testSending ? 'Enviando…' : 'Enviar email de prueba'}
+                        </Button>
+                      </Col>
                     </Row>
-                  </Form>
-                </CardBody></Card>
+                    {testResult && (
+                      <Alert color={testResult.success ? 'success' : 'warning'} className="mt-3">
+                        {testResult.success ? 'Correo de prueba enviado correctamente.' : testResult.detail || 'No se pudo enviar el correo.'}
+                        {testResult.idempotent && <div className="mt-1">Se utilizó el resultado más reciente (idempotente).</div>}
+                      </Alert>
+                    )}
+                    {testLogs.length > 0 && (
+                      <ListGroup className="mt-3">
+                        {testLogs.map((log, idx) => (
+                          <ListGroupItem key={`${log.timestamp}-${idx}`}>
+                            <Badge color={log.level === 'error' ? 'danger' : 'secondary'} className="me-2 text-uppercase">{log.level}</Badge>
+                            <small className="text-muted me-2">{new Date(log.timestamp).toLocaleString()}</small>
+                            {log.message}
+                          </ListGroupItem>
+                        ))}
+                      </ListGroup>
+                    )}
+                  </CardBody>
+                </Card>
+                <Card className="mt-4">
+                  <CardHeader><h5 className="mb-0">Gestor de plantillas</h5></CardHeader>
+                  <CardBody>
+                    {templates.length === 0 ? (
+                      <p className="text-muted mb-0">No hay plantillas configuradas.</p>
+                    ) : (
+                      <>
+                        <Row className="g-3">
+                          <Col md={4}>
+                            <FormGroup>
+                              <Label>Selecciona plantilla</Label>
+                              <Input type="select" value={selectedTemplateId} onChange={e => handleTemplateSelect(e.target.value)}>
+                                {templates.map(t => (
+                                  <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                              </Input>
+                            </FormGroup>
+                          </Col>
+                          <Col md={8} className="d-flex flex-column justify-content-center">
+                            <p className="mb-1 text-muted">{activeTemplate?.description}</p>
+                            {activeTemplate?.updated_at && (
+                              <small className="text-muted">Última actualización: {new Date(activeTemplate.updated_at).toLocaleString()}</small>
+                            )}
+                          </Col>
+                        </Row>
+                        <Form onSubmit={handleTemplateSave}>
+                          <Row className="g-3">
+                            <Col md={6}>
+                              <FormGroup>
+                                <Label>Asunto (Jinja)</Label>
+                                <Input type="textarea" rows={2} value={templateSubject} onChange={e => setTemplateSubject(e.target.value)} required />
+                              </FormGroup>
+                            </Col>
+                            <Col md={6}>
+                              <FormGroup>
+                                <Label>Contenido HTML (Jinja)</Label>
+                                <Input type="textarea" rows={8} value={templateBody} onChange={e => setTemplateBody(e.target.value)} required />
+                                <FormText className="text-muted">Variables disponibles: {(activeTemplate?.allowed_variables || []).join(', ')}</FormText>
+                              </FormGroup>
+                            </Col>
+                          </Row>
+                          <div className="d-flex gap-2 mt-3">
+                            <Button color="primary" type="submit" disabled={templateSaving}>{templateSaving ? 'Guardando…' : 'Guardar plantilla'}</Button>
+                            <Button color="secondary" type="button" onClick={handlePreviewTemplate} disabled={previewLoading}>
+                              {previewLoading ? 'Generando…' : 'Vista previa'}
+                            </Button>
+                          </div>
+                        </Form>
+                        {previewHtml && (
+                          <Card className="mt-3">
+                            <CardHeader><h6 className="mb-0">Vista previa renderizada</h6></CardHeader>
+                            <CardBody>
+                              <div className="email-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                            </CardBody>
+                          </Card>
+                        )}
+                      </>
+                    )}
+                  </CardBody>
+                </Card>
+                <Card className="mt-4">
+                  <CardHeader><h5 className="mb-0">Marca blanca</h5></CardHeader>
+                  <CardBody>
+                    <Form onSubmit={handleBrandingSave}>
+                      <Row className="g-3">
+                        <Col md={4}><Label>Nombre de marca</Label><Input value={branding.brand_name} onChange={e => setBranding(prev => ({ ...prev, brand_name: e.target.value }))} required /></Col>
+                        <Col md={4}><Label>Logo (URL)</Label><Input value={branding.logo_url || ''} onChange={e => setBranding(prev => ({ ...prev, logo_url: e.target.value }))} placeholder="https://..." /></Col>
+                        <Col md={2}><Label>Color principal</Label><Input type="text" value={branding.primary_color} onChange={e => setBranding(prev => ({ ...prev, primary_color: e.target.value }))} /></Col>
+                        <Col md={2}><Label>Color texto botón</Label><Input type="text" value={branding.button_text_color} onChange={e => setBranding(prev => ({ ...prev, button_text_color: e.target.value }))} /></Col>
+                        <Col md={12}><Label>Pie de página</Label><Input type="textarea" rows={2} value={branding.footer_text || ''} onChange={e => setBranding(prev => ({ ...prev, footer_text: e.target.value }))} placeholder="© {{ brand.brand_name }}" /></Col>
+                      </Row>
+                      <Button color="primary" type="submit" className="mt-3" disabled={brandingSaving}>{brandingSaving ? 'Guardando…' : 'Guardar marca'}</Button>
+                    </Form>
+                  </CardBody>
+                </Card>
+                <Card className="mt-4">
+                  <CardHeader><h5 className="mb-0">Webhook de eventos</h5></CardHeader>
+                  <CardBody>
+                    <Form onSubmit={handleWebhookSave}>
+                      <Row className="g-3">
+                        <Col md={6}><Label>URL destino</Label><Input type="url" value={webhook.url || ''} onChange={e => setWebhook(prev => ({ ...prev, url: e.target.value }))} placeholder="https://integracion.example.com/webhook" /></Col>
+                        <Col md={6}><Label>Secreto (opcional)</Label><Input value={webhook.secret || ''} onChange={e => setWebhook(prev => ({ ...prev, secret: e.target.value }))} placeholder="clave para firmar mensajes" /></Col>
+                      </Row>
+                      <Row className="g-3 mt-1">
+                        <Col md={3} className="mt-2">
+                          <FormGroup check>
+                            <Input id="webhook-enabled" type="checkbox" checked={webhook.enabled} onChange={e => setWebhook(prev => ({ ...prev, enabled: e.target.checked }))} />
+                            <Label check htmlFor="webhook-enabled">Webhook activo</Label>
+                          </FormGroup>
+                        </Col>
+                        <Col md={9}>
+                          <Label>Eventos enviados</Label>
+                          <div className="d-flex flex-wrap gap-3">
+                            {AVAILABLE_WEBHOOK_EVENTS.map(eventKey => (
+                              <FormGroup check className="me-3" key={eventKey}>
+                                <Input
+                                  type="checkbox"
+                                  id={`webhook-${eventKey}`}
+                                  checked={webhook.enabled_events.includes(eventKey)}
+                                  onChange={e => toggleWebhookEvent(eventKey, e.target.checked)}
+                                />
+                                <Label check htmlFor={`webhook-${eventKey}`}>{eventKey}</Label>
+                              </FormGroup>
+                            ))}
+                          </div>
+                          <FormText className="text-muted">Se enviará un POST en formato JSON con firma opcional cuando ocurran estos eventos.</FormText>
+                        </Col>
+                      </Row>
+                      <Button color="primary" type="submit" className="mt-3" disabled={webhookSaving}>{webhookSaving ? 'Guardando…' : 'Guardar webhook'}</Button>
+                    </Form>
+                  </CardBody>
+                </Card>
               </TabPane>
             </TabContent>
           </>

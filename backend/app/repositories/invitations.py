@@ -1,30 +1,40 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from hashlib import sha256
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from ..core.database import session_scope
 from ..core.settings import settings
 from ..models.invitation import UserInvitationORM
+from .invitation_tokens import delete_token, store_token
+
+
+@dataclass
+class InvitationToken:
+    token: str
+    invitation_id: str
+    expires_at: datetime
 
 
 def _hash(token: str) -> str:
     return sha256(token.encode("utf-8")).hexdigest()
 
 
-def create_invitation(org_id: str, invited_by: str, email: str, name: Optional[str], role: str) -> tuple[str, datetime]:
+def create_invitation(org_id: str, invited_by: str, email: str, name: Optional[str], role: str) -> InvitationToken:
     raw = str(uuid4())
     token_hash = _hash(raw)
     now = datetime.utcnow()
     expires = now + timedelta(seconds=settings.invitation_ttl_seconds)
+    invitation_id = str(uuid4())
     with session_scope() as session:  # type: Session
         inv = UserInvitationORM(
-            id=str(uuid4()),
+            id=invitation_id,
             org_id=org_id,
             email=email,
             name=name,
@@ -35,7 +45,8 @@ def create_invitation(org_id: str, invited_by: str, email: str, name: Optional[s
             expires_at=expires,
         )
         session.add(inv)
-    return raw, expires
+    store_token(invitation_id, raw)
+    return InvitationToken(token=raw, invitation_id=invitation_id, expires_at=expires)
 
 
 def get_invitation(token: str) -> Optional[UserInvitationORM]:
@@ -50,6 +61,7 @@ def mark_accepted(inv: UserInvitationORM) -> None:
         if obj:
             obj.accepted_at = datetime.utcnow()
             session.add(obj)
+    delete_token(inv.id)
 
 
 def get_latest_pending_invitation(org_id: str, email: str) -> Optional[UserInvitationORM]:

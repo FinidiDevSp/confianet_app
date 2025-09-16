@@ -9,3 +9,5 @@ SQLAlchemy>=2.0
 PyMySQL
 pyotp
 qrcode[pil]
+Jinja2
+httpx
