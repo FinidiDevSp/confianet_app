@@ -24,13 +24,17 @@ def list_logs(
         "SELECT id, org_id, actor_id, actor_role, action, target_type, target_id, ip_hash, created_at "
         "FROM audit_log WHERE 1=1"
     )
-    params: dict[str, Any] = {"limit": limit, "offset": offset}
+    params: dict[str, Any] = {"limit": limit, "offset": offset, "org_id": me.org_id}
     if action:
         base += " AND action = :action"
         params["action"] = action
     if role:
         base += " AND actor_role = :role"
         params["role"] = role
+    # Non-admin users see only their own events
+    if me.role != Role.admin:
+        base += " AND actor_id = :actor_id"
+        params["actor_id"] = str(me.id)
     base += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
     sql = text(base)
     with engine.connect() as conn:
@@ -42,13 +46,26 @@ def list_logs(
 def stats(
     me: Any = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor)),
 ) -> dict[str, int]:
-    sql = text(
-        """
-        SELECT action, COUNT(*) AS total
-        FROM audit_log
-        GROUP BY action
-        """
-    )
+    if me.role == Role.admin:
+        sql = text(
+            """
+            SELECT action, COUNT(*) AS total
+            FROM audit_log
+            WHERE org_id = :org_id
+            GROUP BY action
+            """
+        )
+        params = {"org_id": me.org_id}
+    else:
+        sql = text(
+            """
+            SELECT action, COUNT(*) AS total
+            FROM audit_log
+            WHERE org_id = :org_id AND actor_id = :actor_id
+            GROUP BY action
+            """
+        )
+        params = {"org_id": me.org_id, "actor_id": str(me.id)}
     with engine.connect() as conn:
-        rows = conn.execute(sql).all()
+        rows = conn.execute(sql, params).all()
     return {action: int(total) for action, total in rows}

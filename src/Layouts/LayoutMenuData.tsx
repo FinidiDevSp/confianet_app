@@ -157,19 +157,25 @@ const Navdata = () => {
                 setIscurrentState('Dashboard');
                 updateIconSidebar(e);
             },
-            subItems: [
-                {
-                    id: "analytics",
-                    label: "Analytics",
-                    link: "/dashboard-analytics",
-                    parentId: "dashboard",
-                },
-                {
-                    id: "crm",
-                    label: "CRM",
-                    link: "/dashboard-crm",
-                    parentId: "dashboard",
-                },
+                subItems: [
+                    {
+                        id: "analytics",
+                        label: "Analytics",
+                        link: "/dashboard-analytics",
+                        parentId: "dashboard",
+                    },
+                    {
+                        id: "audit",
+                        label: "Audit",
+                        link: "/dashboard-audit",
+                        parentId: "dashboard",
+                    },
+                    {
+                        id: "crm",
+                        label: "CRM",
+                        link: "/dashboard-crm",
+                        parentId: "dashboard",
+                    },
                 {
                     id: "ecommerce",
                     label: "Ecommerce",

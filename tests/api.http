@@ -173,7 +173,8 @@ Content-Type: application/json
 {
   "email": "nuevo.investigador@example.com",
   "name": "Investigador Demo",
-  "role": "investigador"
+  "role": "investigador",
+  "mfa": true
 }
 
 ### Settings: obtener configuración de correo (admin)

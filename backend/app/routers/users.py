@@ -35,6 +35,7 @@ class InvitePayload(BaseModel):
     email: EmailStr
     name: Optional[str] = None
     role: Role = Role.investigador
+    mfa: Optional[bool] = False
 
 
 @router.post("/invitations", status_code=status.HTTP_201_CREATED)
@@ -53,7 +54,7 @@ def invite_user(payload: InvitePayload, request: Request, me: MeResponse = Depen
                 role=payload.role.value,
                 # Store as 'suspended' in DB (enum), UI will show 'pending' if password_hash IS NULL
                 status='suspended',
-                mfa_enabled='0',
+                mfa_enabled='1' if payload.mfa else '0',
                 created_at=datetime.utcnow(),
                 password_hash=None,
             )
@@ -166,6 +167,7 @@ def list_users(
         """
         SELECT id, org_id, email, name, role,
                CASE WHEN password_hash IS NULL THEN 'pending' ELSE status END AS status,
+               mfa_enabled,
                created_at
         FROM users
         WHERE org_id = :org_id

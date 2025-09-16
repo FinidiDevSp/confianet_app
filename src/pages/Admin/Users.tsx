@@ -4,12 +4,13 @@ import FeatherIcon from 'feather-icons-react';
 import axios from 'axios';
 import { getLoggedinUser, setAuthorization } from '../../helpers/api_helper';
 
-type UserRow = { id: string; email: string; name: string | null; role: string; status: string; created_at: string };
+type UserRow = { id: string; email: string; name: string | null; role: string; status: string; mfa_enabled?: string | boolean; created_at: string };
 
 const UsersAdmin: React.FC = () => {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState('investigador');
+  const [mfa, setMfa] = useState<boolean>(false);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -159,10 +160,11 @@ const UsersAdmin: React.FC = () => {
         setMessage('Usuario actualizado');
         setEditingUser(null);
       } else {
-        const res: any = await axios.post(`/api/users/invitations`, { email, name, role });
+        const res: any = await axios.post(`/api/users/invitations`, { email, name, role, mfa });
         setMessage(`Invitación enviada a ${email}`);
       }
       setEmail(''); setName(''); setRole('investigador');
+      setMfa(false);
       await load();
     } catch (err: any) {
       setError(err?.message || (editingUser ? 'Error al actualizar' : 'Error al invitar'));
@@ -200,6 +202,10 @@ const UsersAdmin: React.FC = () => {
                       <option value="admin">admin</option>
                     </Input>
                   </div>
+                  <div className="form-check mb-3">
+                    <Input className="form-check-input" id="invite-mfa" type="checkbox" checked={mfa} onChange={(e) => setMfa(e.target.checked)} />
+                    <Label className="form-check-label" htmlFor="invite-mfa">2FA activado</Label>
+                  </div>
                   <div className="d-flex gap-2">
                     <Button color="primary" type="submit">{editingUser ? 'EDITAR' : 'Enviar invitación'}</Button>
                     {editingUser && (
@@ -225,9 +231,10 @@ const UsersAdmin: React.FC = () => {
                           <th>Email</th>
                           <th>Nombre</th>
                           <th>Rol</th>
-                          <th>Estado</th>
-                          <th>Alta</th>
-                          <th>Acciones</th>
+                           <th>Estado</th>
+                           <th>2FA</th>
+                           <th>Alta</th>
+                           <th>Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -237,6 +244,7 @@ const UsersAdmin: React.FC = () => {
                             <td>{u.name || '-'}</td>
                             <td>{u.role}</td>
                             <td><Badge color={badgeColor(u.status)}>{u.status}</Badge></td>
+                            <td>{(String(u.mfa_enabled) === '1' || u.mfa_enabled === true) ? 'Sí' : 'No'}</td>
                             <td>{new Date(u.created_at).toLocaleDateString()}</td>
                             <td className="text-nowrap">
                               <Button size="sm" color="light" aria-label="Editar" title="Editar" onClick={() => startEdit(u)}>
