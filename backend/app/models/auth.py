@@ -43,6 +43,7 @@ class UserOut(BaseModel):
     role: Role
     status: str
     mfa_enabled: bool = False
+    delegated_roles: list[str] = []
 
 
 class MeResponse(UserOut):

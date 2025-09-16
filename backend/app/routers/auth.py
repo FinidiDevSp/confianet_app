@@ -96,6 +96,11 @@ async def login(request: Request, response: Response) -> TokenResponse:
                 detail = f"Credenciales inválidas. Intentos restantes: {remaining}"
             raise HTTPException(status_code=exc.status_code, detail=detail)
         raise
+    # Enrich with delegated roles for UI/menus
+    from ..repositories.delegations import get_active_roles_for_user
+    delegated = list(get_active_roles_for_user(str(user.id), user.org_id))
+    user = UserOut.model_validate({**user.model_dump(), "delegated_roles": delegated})
+
     # If 2FA is enabled, return a challenge instead of tokens
     if getattr(user, "mfa_enabled", False):
         # generate a short-lived MFA token (JWT) that encodes user id
@@ -129,6 +134,9 @@ def refresh(request: Request, response: Response) -> TokenResponse:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     # rotate: revoke current and issue a new refresh
     revoke_refresh_token(raw)
+    from ..repositories.delegations import get_active_roles_for_user
+    delegated = list(get_active_roles_for_user(str(me.id), me.org_id))
+    me = MeResponse.model_validate({**me.model_dump(), "delegated_roles": delegated})
     access, refresh_token = issue_tokens(me)
     set_refresh_cookie(response, refresh_token)
     # audit: refresh success
@@ -340,7 +348,9 @@ def get_current_user(creds: HTTPAuthorizationCredentials | None = Depends(auth_s
 
 @router.get("/me", response_model=MeResponse)
 def me(me: MeResponse = Depends(get_current_user)) -> MeResponse:
-    return me
+    from ..repositories.delegations import get_active_roles_for_user
+    delegated = list(get_active_roles_for_user(str(me.id), me.org_id))
+    return MeResponse.model_validate({**me.model_dump(), "delegated_roles": delegated})
 class StepUpPayload(BaseModel):
     code: Optional[str] = None
     recovery_code: Optional[str] = None
