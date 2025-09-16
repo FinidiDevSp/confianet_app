@@ -8,7 +8,12 @@ from pydantic import BaseModel, Field, EmailStr
 
 from ..core.deps import require_roles, require_real_roles
 from ..models.auth import MeResponse, Role
-from ..repositories.delegations import create_delegation, list_delegations, revoke_delegation
+from ..repositories.delegations import (
+    create_delegation,
+    list_delegations,
+    revoke_delegation,
+    get_active_delegations_for_user,
+)
 from ..repositories.audit import log_event
 
 
@@ -77,3 +82,22 @@ def revoke(delegation_id: str, me: MeResponse = Depends(require_real_roles(Role.
     revoke_delegation(delegation_id)
     log_event("delegation.revoked", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type="delegation", target_id=delegation_id, metadata=None, ip=None, ip_salt="")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/me/active")
+def my_active_delegations(me: MeResponse = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor))) -> list[dict[str, Any]]:
+    """Return current user's active delegations with normalized timestamps.
+
+    Exposes the delegations granted to the authenticated user that are not revoked and not expired.
+    """
+    rows = get_active_delegations_for_user(str(me.id), me.org_id)
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        # Normalize naive datetimes as UTC with Z suffix for the client
+        for k in ("created_at", "expires_at", "revoked_at"):
+            v = d.get(k)
+            if v is not None and hasattr(v, "isoformat"):
+                d[k] = v.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+        out.append(d)
+    return out

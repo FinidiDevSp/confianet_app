@@ -56,6 +56,38 @@ const UsersAdmin: React.FC = () => {
   const [showStepModal, setShowStepModal] = useState<boolean>(false);
   const [pendingEditBody, setPendingEditBody] = useState<Record<string, unknown> | null>(null);
 
+  // Helpers: decodificar expiración de JWT (sin validar firma)
+  const decodeJwtExp = (token: string): number | null => {
+    try {
+      const payload = token.split('.')[1];
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const json = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const obj = JSON.parse(json) as { exp?: number };
+      return typeof obj.exp === 'number' ? obj.exp : null;
+    } catch {
+      return null;
+    }
+  };
+  const remainingSecondsFromToken = (token: string): number | null => {
+    const exp = decodeJwtExp(token);
+    if (!exp) return null;
+    const now = Math.floor(Date.now() / 1000);
+    return Math.max(0, exp - now);
+  };
+  const fmtRemaining = (secs: number | null): string => {
+    if (secs == null) return '~5min';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    if (m <= 0) return `~${s}s`;
+    if (s === 0) return `~${m}min`;
+    return `~${m}min ${s}s`;
+  };
+
   useEffect(() => {
     try {
       const u: any = getLoggedinUser();
@@ -158,10 +190,16 @@ const UsersAdmin: React.FC = () => {
         return;
       }
       await axios.delete(`/api/users/${targetUser.id}`, { headers: { 'X-Step-Up': stepToken } });
-      setMessage('Usuario eliminado');
+      const left = remainingSecondsFromToken(stepToken);
+      setMessage(`Usuario eliminado. Acción protegida por 2FA (${fmtRemaining(left)} restantes)`);
       await load();
     } catch (err: any) {
-      setError(err?.message || 'No se pudo eliminar');
+      const msg = (err?.message || err || 'No se pudo eliminar') as string;
+      setError(msg as string);
+      const lower = String(msg).toLowerCase();
+      if (lower.includes('step-up') || lower.includes('step up')) {
+        setShowStepModal(true);
+      }
     } finally {
       closeConfirm();
     }
@@ -177,7 +215,8 @@ const UsersAdmin: React.FC = () => {
       if (targetUser) {
         try {
           await axios.delete(`/api/users/${targetUser.id}`, { headers: { 'X-Step-Up': freshToken } });
-          setMessage('Usuario eliminado');
+          const left = remainingSecondsFromToken(freshToken);
+          setMessage(`Usuario eliminado. Acción protegida por 2FA (${fmtRemaining(left)} restantes)`);
           await load();
         } catch (err: any) {
           setError(err?.message || 'No se pudo eliminar');
@@ -188,7 +227,8 @@ const UsersAdmin: React.FC = () => {
       } else if (editingUser && pendingEditBody) {
         const headers = { 'X-Step-Up': freshToken };
         await axios.patch(`/api/users/${editingUser.id}`, pendingEditBody, { headers });
-        setMessage('Usuario actualizado');
+        const left = remainingSecondsFromToken(freshToken);
+        setMessage(`Usuario actualizado. Acción protegida por 2FA (${fmtRemaining(left)} restantes)`);
         setEditingUser(null);
         setPendingEditBody(null);
         await load();

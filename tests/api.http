@@ -212,6 +212,11 @@ Content-Type: application/json
 GET {{baseUrl}}/api/admin/delegations
 Authorization: Bearer {{accessToken}}
 
+### Delegations: mis delegaciones activas (cualquier rol autenticado)
+GET {{baseUrl}}/api/admin/delegations/me/active
+Authorization: Bearer {{accessToken}}
+
+
 ### Delegations: revocar delegaciÃ³n (admin)
 # Ajusta {delegation_id} con un id existente de la lista
 POST {{baseUrl}}/api/admin/delegations/{delegation_id}/revoke
@@ -323,4 +328,65 @@ Content-Type: application/json
 {
   "email": "{{email}}",
   "password": "wrong"
+}
+### Delegations: mis delegaciones activas (cualquier rol autenticado)
+GET {{baseUrl}}/api/admin/delegations/me/active
+Authorization: Bearer {{accessToken}}
+
+### Step-Up: obtener token temporal para acciones sensibles (admin con 2FA)
+# Reemplaza el código TOTP correcto para el usuario autenticado
+POST {{baseUrl}}/api/auth/step-up
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "code": "123456"
+}
+> {%
+try {
+  const data = JSON.parse(response.body);
+  if (data && data.step_up_token) {
+    client.global.set("stepUpToken", data.step_up_token);
+  }
+} catch {}
+%}
+
+### Users: eliminar usuario (happy path con Step-Up)
+# Ajusta {user_id} a un ID existente (usa un usuario de pruebas)
+DELETE {{baseUrl}}/api/users/{user_id}
+Authorization: Bearer {{accessToken}}
+X-Step-Up: {{stepUpToken}}
+
+### Users: eliminar sin Step-Up (debe 403)
+DELETE {{baseUrl}}/api/users/{user_id}
+Authorization: Bearer {{accessToken}}
+
+### Users: actualizar solo nombre (sin Step-Up)
+# Ajusta {user_id} a un ID existente
+PATCH {{baseUrl}}/api/users/{user_id}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Nombre Solo"
+}
+
+### Users: actualizar rol (debe 403 sin Step-Up)
+PATCH {{baseUrl}}/api/users/{user_id}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "role": "responsable"
+}
+
+### Users: actualizar rol (con Step-Up)
+# Asegúrate de haber ejecutado el Step-Up y tener {{stepUpToken}}
+PATCH {{baseUrl}}/api/users/{user_id}
+Authorization: Bearer {{accessToken}}
+X-Step-Up: {{stepUpToken}}
+Content-Type: application/json
+
+{
+  "role": "responsable"
 }
