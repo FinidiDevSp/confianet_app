@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.settings import settings
-from .routers import auth, health, audit, users, settings as settings_router
+from .routers import auth, health, audit, users, settings as settings_router, delegations as delegations_router
 
 app = FastAPI(title="Confianet API")
 
@@ -28,3 +28,4 @@ app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(audit.router, prefix="/api/audit", tags=["audit"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
+app.include_router(delegations_router.router, prefix="/api/admin/delegations", tags=["delegations"])

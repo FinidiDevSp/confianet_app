@@ -288,7 +288,8 @@ class ImpersonateStartPayload(BaseModel):
 
 
 @router.post("/impersonate/start")
-def impersonate_start(payload: ImpersonateStartPayload, me: MeResponse = Depends(require_roles(Role.admin))) -> dict:
+def impersonate_start(payload: ImpersonateStartPayload, request: Request, me: MeResponse = Depends(require_roles(Role.admin))) -> dict:
+    _require_step_up(request, str(me.id))
     # Issue an access token for the target user without refresh (short-lived), include imp_by claim
     target = me_from_user_id(payload.target_user_id)
     if not target:
@@ -336,3 +337,43 @@ def get_current_user(creds: HTTPAuthorizationCredentials | None = Depends(auth_s
 @router.get("/me", response_model=MeResponse)
 def me(me: MeResponse = Depends(get_current_user)) -> MeResponse:
     return me
+class StepUpPayload(BaseModel):
+    code: Optional[str] = None
+    recovery_code: Optional[str] = None
+
+
+@router.post("/step-up")
+def step_up(payload: StepUpPayload, request: Request) -> dict:
+    me = get_current_user(HTTPAuthorizationCredentials(scheme="bearer", credentials=request.headers.get("Authorization", "").split(" ")[-1]) if request.headers.get("Authorization") else None)
+    rec = get_mfa(str(me.id))
+    if not rec or not rec.get("enabled"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MFA not enabled")
+    # validate same as MFA verify
+    secret = decrypt_str(rec["secret_enc"]) if rec.get("secret_enc") else ""
+    ok = False
+    if payload.code:
+        totp = pyotp.TOTP(secret)
+        ok = bool(totp.verify(payload.code, valid_window=1))
+    elif payload.recovery_code:
+        codes = []
+        try:
+            codes = _json.loads(decrypt_str(rec["recovery_codes_enc"]))
+        except Exception:
+            codes = []
+        ok = payload.recovery_code in codes
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid 2FA code")
+    # issue short-lived step-up token
+    from ..core.security import create_jwt
+    token = create_jwt(subject=str(me.id), data={"type": "stepup"}, ttl_seconds=300)
+    log_event("stepup.success", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type=None, target_id=None, metadata=None, ip=None, ip_salt=settings.ip_hash_salt)
+    return {"step_up_token": token}
+
+
+def _require_step_up(request: Request, user_id: str) -> None:
+    tok = request.headers.get("X-Step-Up") or request.headers.get("x-step-up")
+    if not tok:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Step-up required")
+    data = decode_jwt(tok)
+    if not data or data.get("type") != "stepup" or str(data.get("sub")) != str(user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid step-up token")

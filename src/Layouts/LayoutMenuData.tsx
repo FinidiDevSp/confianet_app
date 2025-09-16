@@ -1107,9 +1107,12 @@ const Navdata = () => {
                 stateVariables: isAdmin,
                 subItems: [
                     { id:'users', label:'Usuarios', link:'/admin/users', parentId:'admin' },
+                    { id:'userpanel', label:'Panel de Usuario', link:'/admin/user-panel', parentId:'admin' },
                     { id:'settings', label:'Configuraciones', link:'/admin/settings', parentId:'admin' },
                 ] });
         }
+        // Opción de seguridad general para cualquier usuario autenticado
+        menuItems.splice(3, 0, { id:'security', label:'Seguridad', icon:'ri-shield-keyhole-line', link:'/security/mfa-setup' });
     } catch (e) {}
     return <React.Fragment>{menuItems}</React.Fragment>;
 };

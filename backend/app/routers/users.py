@@ -192,6 +192,9 @@ def update_user(user_id: str, payload: UpdateUserPayload, request: Request, me: 
         if payload.name is not None:
             obj.name = payload.name
         if payload.role is not None:
+            # step-up required for role changes
+            from ..routers.auth import _require_step_up
+            _require_step_up(request, str(me.id))
             obj.role = payload.role.value
         if payload.status is not None:
             obj.status = payload.status
@@ -351,6 +354,8 @@ def mfa_disable(payload: MfaDisablePayload, request: Request, me: MeResponse = D
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 def delete_user(user_id: str, request: Request, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
+    from ..routers.auth import _require_step_up
+    _require_step_up(request, str(me.id))
     with session_scope() as session:
         obj = session.get(UserORM, user_id)
         if not obj:

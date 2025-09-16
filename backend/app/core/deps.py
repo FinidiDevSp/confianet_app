@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ..models.auth import MeResponse, Role
+from ..repositories.delegations import get_active_roles_for_user
 from ..core.security import decode_jwt
 from ..services.auth import me_from_user_id
 
@@ -30,8 +31,13 @@ def require_roles(*roles: Role):
     allowed: List[Role] = list(roles)
 
     def _dep(user: MeResponse = Depends(_get_current_user)) -> MeResponse:
-        if user.role not in allowed:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
-        return user
+        if user.role in allowed:
+            return user
+        # Check delegated roles
+        delegated = get_active_roles_for_user(str(user.id), user.org_id)
+        for r in allowed:
+            if str(r.value if hasattr(r, 'value') else r) in delegated:
+                return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
     return _dep

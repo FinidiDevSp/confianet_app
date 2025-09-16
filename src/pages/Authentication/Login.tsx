@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, CardBody, Col, Container, Input, Label, Row, Button, Form, FormFeedback, Alert, Spinner } from 'reactstrap';
+import { Card, CardBody, Col, Container, Input, Label, Row, Button, Form, FormFeedback, Alert, Spinner, Modal, ModalHeader, ModalBody, ModalFooter } from 'reactstrap';
 import axios from 'axios';
 import ParticlesAuth from "../AuthenticationInner/ParticlesAuth";
 
@@ -95,6 +95,8 @@ const Login = (props: any) => {
     const [mfaCode, setMfaCode] = useState<string>("");
     const [mfaSetupSecret, setMfaSetupSecret] = useState<string>("");
     const [mfaSetupQr, setMfaSetupQr] = useState<string>("");
+    const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+    const [showRecoveryModal, setShowRecoveryModal] = useState<boolean>(false);
     document.title = "Basic SignIn | Velzon - React Admin & Dashboard Template";
     return (
         <React.Fragment>
@@ -213,19 +215,51 @@ const Login = (props: any) => {
                                                             <Input placeholder="123456" value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} />
                                                             <Button className="mt-2" color="success" type="button" onClick={async () => {
                                                               if (!mfaToken || !mfaSetupSecret || !mfaCode) return;
-                                                              try {
-                                                                const res: any = await axios.post('/api/auth/mfa/setup/confirm', { mfa_token: mfaToken, secret: mfaSetupSecret, code: mfaCode });
-                                                                // Después de confirmar, valida 2FA para emitir tokens
-                                                                const mod: any = require('../../slices/auth/login/thunk');
-                                                                dispatch(mod.verifyMfa(mfaToken, mfaCode, undefined, props.router.navigate));
-                                                              } catch (e:any) {}
-                                                            }}>Confirmar 2FA</Button>
+                                                          try {
+                                                            const res: any = await axios.post('/api/auth/mfa/setup/confirm', { mfa_token: mfaToken, secret: mfaSetupSecret, code: mfaCode });
+                                                            if (res && Array.isArray(res.recovery_codes)) {
+                                                              setRecoveryCodes(res.recovery_codes);
+                                                              setShowRecoveryModal(true);
+                                                            }
+                                                          } catch (e:any) {}
+                                                          }}>Confirmar 2FA</Button>
                                                           </div>
                                                         </div>
                                                       )}
                                                     </div>
                                                   </div>
                                                 )}
+
+                                                <Modal isOpen={showRecoveryModal} toggle={() => setShowRecoveryModal(false)} centered>
+                                                  <ModalHeader toggle={() => setShowRecoveryModal(false)}>Códigos de recuperación</ModalHeader>
+                                                  <ModalBody>
+                                                    <p>Guarda estos códigos en un lugar seguro. Cada código puede usarse una vez si pierdes tu app 2FA.</p>
+                                                    <pre style={{ background: '#f8f9fa', padding: 12, borderRadius: 4 }}>
+                                                      {recoveryCodes.join('\n')}
+                                                    </pre>
+                                                  </ModalBody>
+                                                  <ModalFooter>
+                                                    <Button color="secondary" onClick={() => {
+                                                      // Descargar como archivo de texto
+                                                      try {
+                                                        const blob = new Blob([recoveryCodes.join('\n')], { type: 'text/plain;charset=utf-8' });
+                                                        const url = URL.createObjectURL(blob);
+                                                        const a = document.createElement('a');
+                                                        a.href = url;
+                                                        a.download = 'confianet-recovery-codes.txt';
+                                                        document.body.appendChild(a);
+                                                        a.click();
+                                                        document.body.removeChild(a);
+                                                        URL.revokeObjectURL(url);
+                                                      } catch {}
+                                                    }}>Descargar</Button>
+                                                    <Button color="primary" onClick={() => {
+                                                      if (!mfaToken) { setShowRecoveryModal(false); return; }
+                                                      const mod: any = require('../../slices/auth/login/thunk');
+                                                      dispatch(mod.verifyMfa(mfaToken, mfaCode, undefined, props.router.navigate));
+                                                    }}>He guardado los códigos y continuar</Button>
+                                                  </ModalFooter>
+                                                </Modal>
 
                                                 <div className="form-check">
                                                     <Input className="form-check-input" type="checkbox" value="" id="auth-remember-check" />
