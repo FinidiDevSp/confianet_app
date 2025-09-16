@@ -1100,8 +1100,14 @@ const Navdata = () => {
     try {
         const raw = sessionStorage.getItem('authUser');
         const u = raw ? JSON.parse(raw) : null;
-        const role = u && ((u.user && u.user.role) || u.role) ? String((u.user && u.user.role) || u.role).toLowerCase() : '';
-        if (role === 'admin') {
+        const roleValue = u && (u.user?.role ?? u.role);
+        const role = roleValue ? String(roleValue).toLowerCase() : '';
+        const delegatedRaw = u && (u.user?.delegated_roles ?? u.delegated_roles);
+        const delegatedRoles = Array.isArray(delegatedRaw)
+            ? delegatedRaw.map((r: any) => String(r).toLowerCase())
+            : [];
+        const canSeeAdmin = role === 'admin' || delegatedRoles.includes('admin');
+        if (canSeeAdmin) {
             menuItems.splice(2, 0, { id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/#',
                 click: function(e:any){ e.preventDefault(); setIsAdmin(!isAdmin); setIscurrentState('Admin'); updateIconSidebar(e); },
                 stateVariables: isAdmin,

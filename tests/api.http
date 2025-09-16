@@ -8,6 +8,9 @@ GET {{baseUrl}}/docs
 
 @email = admin@example.com
 @password = 123456
+# Credenciales para usuario con delegacin admin activa (ajusta segn tus datos)
+@delegatedEmail = delegado@example.com
+@delegatedPassword = 123456
 
 ### Login (happy path)
 # @name login
@@ -36,7 +39,26 @@ for (const c of cookies) {
 }
 %}
 
-### Login (credenciales inválidas -> 401)
+### Login delegado admin (captura token temporal)
+# Ajusta las credenciales a un usuario que tenga delegacin vigente al rol admin
+# @name loginDelegatedAdmin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{delegatedEmail}}",
+  "password": "{{delegatedPassword}}"
+}
+> {%
+try {
+  const data = JSON.parse(response.body);
+  if (data && data.access_token) {
+    client.global.set("delegatedAccessToken", data.access_token);
+  }
+} catch {}
+%}
+
+### Login (credenciales invÃ¡lidas -> 401)
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
@@ -62,11 +84,11 @@ GET {{baseUrl}}/api/auth/me
 GET {{baseUrl}}/api/auth/me
 Authorization: Bearer {{accessToken}}
 
-### MFA: iniciar configuración (requiere token)
+### MFA: iniciar configuraciÃ³n (requiere token)
 POST {{baseUrl}}/api/users/mfa/setup/start
 Authorization: Bearer {{accessToken}}
 
-### MFA: confirmar configuración (reemplaza SECRET y CODE por los correctos)
+### MFA: confirmar configuraciÃ³n (reemplaza SECRET y CODE por los correctos)
 POST {{baseUrl}}/api/users/mfa/setup/confirm
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
@@ -85,7 +107,7 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
-### MFA: verificar código tras login
+### MFA: verificar cÃ³digo tras login
 # Copia el mfa_token de la respuesta previa
 POST {{baseUrl}}/api/auth/mfa/verify
 Content-Type: application/json
@@ -113,7 +135,7 @@ Content-Type: application/json
   "target_user_id": "REEMPLAZA_USER_ID"
 }
 
-### Impersonate: terminar (usa token de impersonación en Authorization)
+### Impersonate: terminar (usa token de impersonaciÃ³n en Authorization)
 POST {{baseUrl}}/api/auth/impersonate/stop
 Authorization: Bearer REEMPLAZA_IMP_TOKEN
 
@@ -153,11 +175,17 @@ Content-Type: application/json
 GET {{baseUrl}}/api/audit/logs?limit=10
 Authorization: Bearer {{accessToken}}
 
-### Audit: stats por acción (requiere token)
+### Audit: logs completos con delegacin admin (usa token delegado)
+# Ejecuta `loginDelegatedAdmin` previamente para capturar {{delegatedAccessToken}}
+# Debe devolver los eventos completos de la organizacin aun si el usuario real no es admin
+GET {{baseUrl}}/api/audit/logs?limit=10
+Authorization: Bearer {{delegatedAccessToken}}
+
+### Audit: stats por acciÃ³n (requiere token)
 GET {{baseUrl}}/api/audit/stats
 Authorization: Bearer {{accessToken}}
 
-### Audit: listar logs filtrando por acción (login_success)
+### Audit: listar logs filtrando por acciÃ³n (login_success)
 GET {{baseUrl}}/api/audit/logs?limit=10&action=login_success
 Authorization: Bearer {{accessToken}}
 
@@ -177,7 +205,7 @@ Content-Type: application/json
   "mfa": true
 }
 
-### Settings: obtener configuración de correo (admin)
+### Settings: obtener configuraciÃ³n de correo (admin)
 GET {{baseUrl}}/api/settings/email
 Authorization: Bearer {{accessToken}}
 
@@ -197,7 +225,7 @@ Content-Type: application/json
   "from_email": "no-reply@example.com"
 }
 
-### Delegations: crear delegación temporal (admin)
+### Delegations: crear delegaciÃ³n temporal (admin)
 POST {{baseUrl}}/api/admin/delegations
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
@@ -217,7 +245,7 @@ GET {{baseUrl}}/api/admin/delegations/me/active
 Authorization: Bearer {{accessToken}}
 
 
-### Delegations: revocar delegación (admin)
+### Delegations: revocar delegaciÃ³n (admin)
 # Ajusta {delegation_id} con un id existente de la lista
 POST {{baseUrl}}/api/admin/delegations/{delegation_id}/revoke
 Authorization: Bearer {{accessToken}}
@@ -227,7 +255,7 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/users?limit=10&offset=0
 Authorization: Bearer {{accessToken}}
 
-### Users: listar usuarios (página 2)
+### Users: listar usuarios (pÃ¡gina 2)
 GET {{baseUrl}}/api/users?limit=10&offset=10
 Authorization: Bearer {{accessToken}}
 
@@ -252,12 +280,12 @@ Authorization: Bearer {{accessToken}}
 DELETE {{baseUrl}}/api/users/{user_id}
 Authorization: Bearer {{accessToken}}
 
-### Users: reenviar invitación si pending (si no caducó, reutiliza)
+### Users: reenviar invitaciÃ³n si pending (si no caducÃ³, reutiliza)
 # Ajusta {user_id} de un usuario con estado pending
 POST {{baseUrl}}/api/users/{user_id}/resend-invitation
 Authorization: Bearer {{accessToken}}
 
-### Users: reenviar invitación para usuario activo (debe 400)
+### Users: reenviar invitaciÃ³n para usuario activo (debe 400)
 POST {{baseUrl}}/api/users/{active_user_id}/resend-invitation
 Authorization: Bearer {{accessToken}}
 
@@ -277,7 +305,7 @@ Content-Type: application/json
   "require_symbol": true
 }
 
-### Users: validar invitación (token de ejemplo)
+### Users: validar invitaciÃ³n (token de ejemplo)
 GET {{baseUrl}}/api/users/invitations/validate?token=REEMPLAZA_TOKEN
 
 
@@ -334,7 +362,7 @@ GET {{baseUrl}}/api/admin/delegations/me/active
 Authorization: Bearer {{accessToken}}
 
 ### Step-Up: obtener token temporal para acciones sensibles (admin con 2FA)
-# Reemplaza el c�digo TOTP correcto para el usuario autenticado
+# Reemplaza el código TOTP correcto para el usuario autenticado
 POST {{baseUrl}}/api/auth/step-up
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
@@ -381,7 +409,7 @@ Content-Type: application/json
 }
 
 ### Users: actualizar rol (con Step-Up)
-# Aseg�rate de haber ejecutado el Step-Up y tener {{stepUpToken}}
+# Asegúrate de haber ejecutado el Step-Up y tener {{stepUpToken}}
 PATCH {{baseUrl}}/api/users/{user_id}
 Authorization: Bearer {{accessToken}}
 X-Step-Up: {{stepUpToken}}

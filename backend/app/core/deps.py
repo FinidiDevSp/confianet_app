@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, List
+from typing import List
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -31,13 +31,16 @@ def require_roles(*roles: Role):
     allowed: List[Role] = list(roles)
 
     def _dep(user: MeResponse = Depends(_get_current_user)) -> MeResponse:
+        delegated_raw = get_active_roles_for_user(str(user.id), user.org_id)
+        delegated = sorted(delegated_raw)
+        delegated_normalized = {role.lower() for role in delegated_raw}
+        enriched = MeResponse.model_validate({**user.model_dump(), "delegated_roles": delegated})
         if user.role in allowed:
-            return user
-        # Check delegated roles
-        delegated = get_active_roles_for_user(str(user.id), user.org_id)
+            return enriched
         for r in allowed:
-            if str(r.value if hasattr(r, 'value') else r) in delegated:
-                return user
+            value = r.value if hasattr(r, "value") else r
+            if str(value).lower() in delegated_normalized:
+                return enriched
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
     return _dep
@@ -48,8 +51,10 @@ def require_real_roles(*roles: Role):
 
     def _dep(user: MeResponse = Depends(_get_current_user)) -> MeResponse:
         # Only accept real role, ignore delegated
+        delegated = sorted(get_active_roles_for_user(str(user.id), user.org_id))
+        enriched = MeResponse.model_validate({**user.model_dump(), "delegated_roles": delegated})
         if user.role in allowed:
-            return user
+            return enriched
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role (real admin required)")
 
     return _dep
