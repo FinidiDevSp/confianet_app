@@ -6,7 +6,7 @@ from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from pydantic import BaseModel, Field, EmailStr
 
-from ..core.deps import require_roles
+from ..core.deps import require_roles, require_real_roles
 from ..models.auth import MeResponse, Role
 from ..repositories.delegations import create_delegation, list_delegations, revoke_delegation
 from ..repositories.audit import log_event
@@ -22,7 +22,7 @@ class CreateDelegationPayload(BaseModel):
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def create(payload: CreateDelegationPayload, me: MeResponse = Depends(require_roles(Role.admin))) -> dict[str, Any]:
+def create(payload: CreateDelegationPayload, me: MeResponse = Depends(require_real_roles(Role.admin))) -> dict[str, Any]:
     from uuid import uuid4
     # Normalize datetimes to UTC-aware for comparison
     now_utc = datetime.now(timezone.utc)
@@ -57,7 +57,7 @@ def create(payload: CreateDelegationPayload, me: MeResponse = Depends(require_ro
 
 
 @router.get("")
-def list_all(me: MeResponse = Depends(require_roles(Role.admin))) -> list[dict[str, Any]]:
+def list_all(me: MeResponse = Depends(require_real_roles(Role.admin))) -> list[dict[str, Any]]:
     # Return times as UTC ISO8601 with Z to avoid tz confusion on client
     rows = list_delegations(me.org_id)
     out: list[dict[str, Any]] = []
@@ -73,7 +73,7 @@ def list_all(me: MeResponse = Depends(require_roles(Role.admin))) -> list[dict[s
 
 
 @router.post("/{delegation_id}/revoke", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
-def revoke(delegation_id: str, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
+def revoke(delegation_id: str, me: MeResponse = Depends(require_real_roles(Role.admin))) -> Response:
     revoke_delegation(delegation_id)
     log_event("delegation.revoked", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type="delegation", target_id=delegation_id, metadata=None, ip=None, ip_salt="")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

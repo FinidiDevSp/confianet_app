@@ -296,7 +296,7 @@ class ImpersonateStartPayload(BaseModel):
 
 
 @router.post("/impersonate/start")
-def impersonate_start(payload: ImpersonateStartPayload, request: Request, me: MeResponse = Depends(require_roles(Role.admin))) -> dict:
+def impersonate_start(payload: ImpersonateStartPayload, request: Request, me: MeResponse = Depends(require_real_roles(Role.admin))) -> dict:
     _require_step_up(request, str(me.id))
     # Issue an access token for the target user without refresh (short-lived), include imp_by claim
     from ..repositories.users import users_repo

@@ -69,3 +69,18 @@ def get_active_roles_for_user(user_id: str, org_id: str) -> Set[str]:
                 roles.add(r.strip())
     return roles
 
+
+def get_active_delegations_for_user(user_id: str, org_id: str) -> list[dict]:
+    sql = text(
+        """
+        SELECT id, org_id, granter_id, grantee_id, roles_csv, created_at, expires_at, revoked_at
+        FROM user_delegations
+        WHERE org_id=:org_id AND grantee_id=:uid AND revoked_at IS NULL AND expires_at > :now
+        ORDER BY created_at DESC
+        """
+    )
+    from datetime import datetime
+    now = datetime.utcnow()
+    with engine.connect() as conn:
+        rows = conn.execute(sql, {"org_id": org_id, "uid": user_id, "now": now}).mappings().all()
+    return [dict(r) for r in rows]

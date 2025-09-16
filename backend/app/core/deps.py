@@ -41,3 +41,15 @@ def require_roles(*roles: Role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
     return _dep
+
+
+def require_real_roles(*roles: Role):
+    allowed: List[Role] = list(roles)
+
+    def _dep(user: MeResponse = Depends(_get_current_user)) -> MeResponse:
+        # Only accept real role, ignore delegated
+        if user.role in allowed:
+            return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role (real admin required)")
+
+    return _dep

@@ -1101,9 +1101,7 @@ const Navdata = () => {
         const raw = sessionStorage.getItem('authUser');
         const u = raw ? JSON.parse(raw) : null;
         const role = u && ((u.user && u.user.role) || u.role) ? String((u.user && u.user.role) || u.role).toLowerCase() : '';
-        const delegated = (u && ((u.user && (u.user as any).delegated_roles) || (u as any).delegated_roles)) || [];
-        const isDelegatedAdmin = Array.isArray(delegated) && delegated.includes('admin');
-        if (role === 'admin' || isDelegatedAdmin) {
+        if (role === 'admin') {
             menuItems.splice(2, 0, { id: 'admin', label: 'Admin', icon: 'ri-shield-user-line', link: '/#',
                 click: function(e:any){ e.preventDefault(); setIsAdmin(!isAdmin); setIscurrentState('Admin'); updateIconSidebar(e); },
                 stateVariables: isAdmin,
@@ -1115,6 +1113,8 @@ const Navdata = () => {
         }
         // Opción de seguridad general para cualquier usuario autenticado
         menuItems.splice(3, 0, { id:'security', label:'Seguridad', icon:'ri-shield-keyhole-line', link:'/security/mfa-setup' });
+        // Panel de Administración accesible para cualquier rol
+        menuItems.splice(4, 0, { id:'userpaneltop', label:'Panel de Administración', icon:'ri-user-settings-line', link:'/admin/user-panel' });
     } catch (e) {}
     return <React.Fragment>{menuItems}</React.Fragment>;
 };

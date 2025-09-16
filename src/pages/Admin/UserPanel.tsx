@@ -28,8 +28,15 @@ const UserPanel: React.FC = () => {
       try {
         const meRes: any = await axios.get('/api/auth/me');
         setMe(meRes);
-        const del: any = await axios.get('/api/admin/delegations');
-        setDelegations(del as any);
+        if (meRes.role === 'admin') {
+          const del: any = await axios.get('/api/admin/delegations');
+          setDelegations(del as any);
+        } else {
+          try {
+            const myDel: any = await axios.get('/api/admin/delegations/me/active');
+            setDelegations(myDel as any);
+          } catch {}
+        }
       } catch (e:any) {}
     })();
   }, []);
@@ -67,7 +74,7 @@ const UserPanel: React.FC = () => {
     try {
       setMessage(null); setError(null);
       if (!expiresAt) { setError('Indica fecha/hora de expiración'); return; }
-      const payload = { grantee_email: granteeEmail, roles: roles, expires_at: new Date(expiresAt).toISOString() };
+      const payload = { grantee_email: granteeEmail, roles: [roles[0]], expires_at: new Date(expiresAt).toISOString() };
       const res: any = await axios.post('/api/admin/delegations', payload);
       setMessage('Delegación creada');
       const del: any = await axios.get('/api/admin/delegations');
@@ -82,7 +89,17 @@ const UserPanel: React.FC = () => {
   return (
     <div className="page-content">
       <Container fluid>
-        <Row><Col lg={12}><h4 className="mb-3">Panel de Usuario</h4></Col></Row>
+        <Row><Col lg={12}>
+          <h4 className="mb-1">Panel de Usuario</h4>
+          {me && (
+            <p className="text-muted">
+              ROL REAL: <strong>{me.role}</strong>
+              {delegations && delegations.length > 0 && (
+                <> | ROL ACTUAL: <strong>{ String(delegations[0].roles_csv || '').split(',')[0] }</strong> (hasta { new Date(delegations[0].expires_at).toLocaleString() })</>
+              )}
+            </p>
+          )}
+        </Col></Row>
         {message && <Alert color="success" isOpen transition={{ timeout: 200 }}>{message}</Alert>}
         {error && <Alert color="danger" isOpen transition={{ timeout: 200 }}>{error}</Alert>}
 
@@ -116,13 +133,7 @@ const UserPanel: React.FC = () => {
                 <div className="d-flex gap-3">
                   {['admin','responsable','investigador','auditor'].map(r => (
                     <div className="form-check" key={r}>
-                      <Input className="form-check-input" type="checkbox" id={`r-${r}`} checked={roles.includes(r)} onChange={(e) => {
-                        if (e.target.checked) {
-                          if (!roles.includes(r)) setRoles([...roles, r]);
-                        } else {
-                          setRoles(roles.filter(x => x !== r));
-                        }
-                      }} />
+                      <Input className="form-check-input" type="radio" name="delegatedRole" id={`r-${r}`} checked={roles[0] === r} onChange={() => setRoles([r])} />
                       <Label className="form-check-label" htmlFor={`r-${r}`}>{r}</Label>
                     </div>
                   ))}
