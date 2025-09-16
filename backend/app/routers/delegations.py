@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from pydantic import BaseModel, Field
 
 from ..core.deps import require_roles
@@ -48,9 +48,8 @@ def list_all(me: MeResponse = Depends(require_roles(Role.admin))) -> list[dict[s
     return list_delegations(me.org_id)
 
 
-@router.post("/{delegation_id}/revoke", status_code=status.HTTP_204_NO_CONTENT)
-def revoke(delegation_id: str, me: MeResponse = Depends(require_roles(Role.admin))) -> None:
+@router.post("/{delegation_id}/revoke", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def revoke(delegation_id: str, me: MeResponse = Depends(require_roles(Role.admin))) -> Response:
     revoke_delegation(delegation_id)
     log_event("delegation.revoked", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type="delegation", target_id=delegation_id, metadata=None, ip=None, ip_salt="")
-    return None
-
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

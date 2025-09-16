@@ -117,7 +117,11 @@ const UserPanel: React.FC = () => {
                   {['admin','responsable','investigador','auditor'].map(r => (
                     <div className="form-check" key={r}>
                       <Input className="form-check-input" type="checkbox" id={`r-${r}`} checked={roles.includes(r)} onChange={(e) => {
-                        if (e.target.checked) setRoles([...new Set([...roles, r])]); else setRoles(roles.filter(x => x!==r));
+                        if (e.target.checked) {
+                          if (!roles.includes(r)) setRoles([...roles, r]);
+                        } else {
+                          setRoles(roles.filter(x => x !== r));
+                        }
                       }} />
                       <Label className="form-check-label" htmlFor={`r-${r}`}>{r}</Label>
                     </div>
@@ -171,4 +175,3 @@ const UserPanel: React.FC = () => {
 };
 
 export default UserPanel;
-
