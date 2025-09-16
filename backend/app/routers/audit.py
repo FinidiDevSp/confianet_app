@@ -18,7 +18,7 @@ def list_logs(
     offset: int = Query(0, ge=0),
     action: Optional[str] = Query(None),
     role: Optional[str] = Query(None),
-    me: Any = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor)),
+    me: MeResponse = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor)),
 ) -> list[dict[str, Any]]:
     base = (
         "SELECT id, org_id, actor_id, actor_role, action, target_type, target_id, ip_hash, created_at "
@@ -31,8 +31,10 @@ def list_logs(
     if role:
         base += " AND actor_role = :role"
         params["role"] = role
+    delegated_roles = {str(role).lower() for role in getattr(me, "delegated_roles", [])}
+    is_admin = me.role == Role.admin or "admin" in delegated_roles
     # Non-admin users see only their own events
-    if me.role != Role.admin:
+    if not is_admin:
         base += " AND actor_id = :actor_id"
         params["actor_id"] = str(me.id)
     base += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
@@ -44,9 +46,11 @@ def list_logs(
 
 @router.get("/stats", response_model=dict[str, int])
 def stats(
-    me: Any = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor)),
+    me: MeResponse = Depends(require_roles(Role.admin, Role.responsable, Role.investigador, Role.auditor)),
 ) -> dict[str, int]:
-    if me.role == Role.admin:
+    delegated_roles = {str(role).lower() for role in getattr(me, "delegated_roles", [])}
+    is_admin = me.role == Role.admin or "admin" in delegated_roles
+    if is_admin:
         sql = text(
             """
             SELECT action, COUNT(*) AS total
