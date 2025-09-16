@@ -58,7 +58,18 @@ def create(payload: CreateDelegationPayload, me: MeResponse = Depends(require_ro
 
 @router.get("")
 def list_all(me: MeResponse = Depends(require_roles(Role.admin))) -> list[dict[str, Any]]:
-    return list_delegations(me.org_id)
+    # Return times as UTC ISO8601 with Z to avoid tz confusion on client
+    rows = list_delegations(me.org_id)
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        for k in ("created_at", "expires_at", "revoked_at"):
+            v = d.get(k)
+            if v is not None and hasattr(v, "isoformat"):
+                # treat stored naive datetimes as UTC
+                d[k] = v.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+        out.append(d)
+    return out
 
 
 @router.post("/{delegation_id}/revoke", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
