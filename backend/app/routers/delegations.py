@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
@@ -24,7 +24,11 @@ class CreateDelegationPayload(BaseModel):
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create(payload: CreateDelegationPayload, me: MeResponse = Depends(require_roles(Role.admin))) -> dict[str, Any]:
     from uuid import uuid4
-    if payload.expires_at <= datetime.utcnow():
+    # Normalize datetimes to UTC-aware for comparison
+    now_utc = datetime.now(timezone.utc)
+    exp = payload.expires_at
+    exp_utc = exp.astimezone(timezone.utc) if exp.tzinfo is not None else exp.replace(tzinfo=timezone.utc)
+    if exp_utc <= now_utc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Expiration must be in the future")
     id_ = str(uuid4())
     # resolve grantee by email within org
@@ -34,13 +38,15 @@ def create(payload: CreateDelegationPayload, me: MeResponse = Depends(require_ro
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario destinatario no encontrado")
     if grantee.org_id != me.org_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario fuera de tu organización")
+    # Store naive UTC in DB (DATETIME assumed UTC)
+    exp_naive_utc = exp_utc.replace(tzinfo=None)
     create_delegation(
         id_=id_,
         org_id=me.org_id,
         granter_id=str(me.id),
         grantee_id=str(grantee.id),
         roles=[r.value for r in payload.roles],
-        expires_at=payload.expires_at,
+        expires_at=exp_naive_utc,
     )
     log_event(
         "delegation.created", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value,

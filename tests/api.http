@@ -197,6 +197,27 @@ Content-Type: application/json
   "from_email": "no-reply@example.com"
 }
 
+### Delegations: crear delegación temporal (admin)
+POST {{baseUrl}}/api/admin/delegations
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "grantee_email": "responsable@example.com",
+  "roles": ["responsable"],
+  "expires_at": "2030-01-01T12:00:00Z"
+}
+
+### Delegations: listar delegaciones (admin)
+GET {{baseUrl}}/api/admin/delegations
+Authorization: Bearer {{accessToken}}
+
+### Delegations: revocar delegación (admin)
+# Ajusta {delegation_id} con un id existente de la lista
+POST {{baseUrl}}/api/admin/delegations/{delegation_id}/revoke
+Authorization: Bearer {{accessToken}}
+
+
 ### Users: listar usuarios (admin)
 GET {{baseUrl}}/api/users?limit=10&offset=0
 Authorization: Bearer {{accessToken}}
