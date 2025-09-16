@@ -11,7 +11,12 @@ from ..core.deps import require_roles
 from ..repositories.audit import log_event
 from ..core.settings import settings
 from ..models.auth import MeResponse, Role
-from ..repositories.invitations import create_invitation, get_invitation, mark_accepted, get_latest_pending_invitation
+from ..repositories.invitations import (
+    create_invitation,
+    get_invitation,
+    mark_accepted,
+    get_latest_pending_invitation,
+)
 from ..repositories.password_policy import get_policy, update_policy
 from ..core.security import hash_password, validate_password_policy
 from ..repositories.users import users_repo
@@ -25,10 +30,31 @@ import base64
 import json as _json
 import qrcode
 from ..repositories.app_settings import get_json
-from ..core.emailer import SmtpConfig, send_email
+from ..core.emailer import SmtpConfig
+from ..services.email_templates import EmailTemplateManager
+from ..services.email_delivery import EmailRateLimitError, send_templated_email
+from ..services.webhooks import trigger_webhook
+from ..repositories.invitation_tokens import get_token as get_invitation_token
 
 
 router = APIRouter()
+
+
+def _smtp_config_or_error(org_id: str) -> tuple[SmtpConfig, dict[str, Any]]:
+    conf = get_json(org_id, "email_settings")
+    if not conf or not conf.get("smtp_host") or not conf.get("from_email") or not conf.get("smtp_port"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email settings not configured")
+    smtp_cfg = SmtpConfig(
+        host=str(conf.get("smtp_host")),
+        port=int(conf.get("smtp_port", 587)),
+        username=conf.get("username"),
+        password=conf.get("password"),
+        use_tls=bool(conf.get("use_tls", True)),
+        use_ssl=bool(conf.get("use_ssl", False)),
+        from_name=str(conf.get("from_name", "Confianet")),
+        from_email=str(conf.get("from_email")),
+    )
+    return smtp_cfg, conf
 
 
 class InvitePayload(BaseModel):
@@ -40,7 +66,13 @@ class InvitePayload(BaseModel):
 
 @router.post("/invitations", status_code=status.HTTP_201_CREATED)
 def invite_user(payload: InvitePayload, request: Request, me: MeResponse = Depends(require_roles(Role.admin))) -> dict[str, Any]:
-    token, expires = create_invitation(org_id=me.org_id, invited_by=str(me.id), email=payload.email, name=payload.name, role=payload.role.value)
+    invitation = create_invitation(
+        org_id=me.org_id,
+        invited_by=str(me.id),
+        email=payload.email,
+        name=payload.name,
+        role=payload.role.value,
+    )
     # Ensure user exists in suspended (pending) state until password is set
     new_user_id: Optional[str] = None
     with session_scope() as session:
@@ -61,32 +93,37 @@ def invite_user(payload: InvitePayload, request: Request, me: MeResponse = Depen
             session.add(u)
             new_user_id = u.id
     # Build link for email
-    link = f"http://localhost:3000/auth-signup-basic?token={token}&email={payload.email}&name={payload.name or ''}"
+    link = f"http://localhost:3000/auth-signup-basic?token={invitation.token}&email={payload.email}&name={payload.name or ''}"
     # Send real email using org email settings
-    conf = get_json(me.org_id, "email_settings")
-    if not conf or not conf.get("smtp_host") or not conf.get("from_email") or not conf.get("smtp_port"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email settings not configured")
-    smtp_cfg = SmtpConfig(
-        host=str(conf.get("smtp_host")),
-        port=int(conf.get("smtp_port", 587)),
-        username=conf.get("username"),
-        password=conf.get("password"),
-        use_tls=bool(conf.get("use_tls", True)),
-        use_ssl=bool(conf.get("use_ssl", False)),
-        from_name=str(conf.get("from_name", "Confianet")),
-        from_email=str(conf.get("from_email")),
-    )
-    subject = "Invitación a Confianet"
-    html = f"""
-    <p>Has sido invitado a unirte a Confianet{(' como ' + payload.role.value) if payload.role else ''}.</p>
-    <p>Haz clic en el siguiente enlace para crear tu contraseña:</p>
-    <p><a href="{link}">Completar registro</a></p>
-    <p>Si no solicitaste esta invitación, ignora este mensaje.</p>
-    """
+    smtp_cfg, conf = _smtp_config_or_error(me.org_id)
+    manager = EmailTemplateManager(me.org_id)
+    context = {
+        "invitee_name": payload.name or payload.email,
+        "organization_name": manager.branding.brand_name,
+        "invite_link": link,
+        "invited_by_name": me.full_name or me.email,
+        "expires_at": invitation.expires_at.isoformat(),
+    }
     try:
-        send_email(smtp_cfg, payload.email, subject, html)
+        outcome = send_templated_email(
+            org_id=me.org_id,
+            template_id="user_invitation",
+            smtp_cfg=smtp_cfg,
+            to_email=payload.email,
+            context=context,
+            dedupe_key=f"invitation:{invitation.invitation_id}",
+        )
+    except EmailRateLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Espera {exc.retry_after_seconds} segundos antes de reenviar otra invitación",
+        )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"No se pudo enviar el correo: {e}")
+
+    if outcome.idempotent:
+        # No enviar respuesta de error; continuar para auditoría pero indicar en mensaje
+        pass
     # Audit: user invited
     client_ip = request.client.host if request.client else None
     target_id = new_user_id or (existing.id if existing else None)
@@ -101,7 +138,18 @@ def invite_user(payload: InvitePayload, request: Request, me: MeResponse = Depen
         ip=client_ip,
         ip_salt=settings.ip_hash_salt,
     )
-    return {"message": f"Invitación enviada a {payload.email}"}
+    trigger_webhook(
+        me.org_id,
+        "user.invited",
+        {
+            "email": payload.email,
+            "role": payload.role.value,
+            "invited_by": str(me.id),
+            "user_id": target_id,
+            "expires_at": invitation.expires_at.isoformat(),
+        },
+    )
+    return {"message": f"Invitación enviada a {payload.email}", "idempotent": outcome.idempotent}
 
 
 class AcceptInvitationPayload(BaseModel):
@@ -123,6 +171,7 @@ def accept_invitation(payload: AcceptInvitationPayload) -> Response:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
     pwd_hash = hash_password(payload.password)
     # Create or update user
+    activated_user_id: Optional[str] = None
     with session_scope() as session:
         existing = users_repo.get_by_email(inv.email)
         if existing:
@@ -131,6 +180,7 @@ def accept_invitation(payload: AcceptInvitationPayload) -> Response:
                 obj.password_hash = pwd_hash
                 obj.status = 'active'
                 session.add(obj)
+                activated_user_id = obj.id
         else:
             user = UserORM(
                 id=str(uuid4()),
@@ -144,7 +194,13 @@ def accept_invitation(payload: AcceptInvitationPayload) -> Response:
                 password_hash=pwd_hash,
             )
             session.add(user)
+            activated_user_id = user.id
     mark_accepted(inv)
+    trigger_webhook(
+        inv.org_id,
+        "user.activated",
+        {"email": inv.email, "user_id": activated_user_id},
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -256,6 +312,11 @@ def suspend_user(user_id: str, request: Request, me: MeResponse = Depends(requir
         metadata=None,
         ip=client_ip,
         ip_salt=settings.ip_hash_salt,
+    )
+    trigger_webhook(
+        me.org_id,
+        "user.suspended",
+        {"user_id": user_id, "by": str(me.id)},
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -393,30 +454,102 @@ def resend_invitation(user_id: str, request: Request, me: MeResponse = Depends(r
         role = obj.role
 
     # Check latest invitation status
-    from datetime import datetime
     latest = get_latest_pending_invitation(me.org_id, email)
-    if latest and latest.expires_at >= datetime.utcnow():
-        # We cannot reconstruct the raw token from its hash; indicate reuse.
-        # Audit reuse
-        client_ip = request.client.host if request.client else None
-        log_event(
-            action="invitation_reused",
-            org_id=me.org_id,
-            actor_id=str(me.id),
-            actor_role=me.role.value,
-            target_type="user",
-            target_id=user_id,
-            metadata={"expires_at": latest.expires_at.isoformat()},
-            ip=client_ip,
-            ip_salt=settings.ip_hash_salt,
-        )
-        return {"reused": True, "invitation_url": None, "expires_at": latest.expires_at.isoformat()}
+    manager = EmailTemplateManager(me.org_id)
+    smtp_cfg, _ = _smtp_config_or_error(me.org_id)
+    now = datetime.utcnow()
+    client_ip = request.client.host if request.client else None
+
+    if latest and latest.expires_at >= now:
+        token_raw = get_invitation_token(latest.id)
+        if not token_raw:
+            # Fall back to new invitation if token is not available
+            latest = None
+        else:
+            link = f"http://localhost:3000/auth-signup-basic?token={token_raw}&email={email}&name={name or ''}"
+            context = {
+                "invitee_name": name or email,
+                "organization_name": manager.branding.brand_name,
+                "invite_link": link,
+                "invited_by_name": me.full_name or me.email,
+                "expires_at": latest.expires_at.isoformat(),
+            }
+            try:
+                outcome = send_templated_email(
+                    org_id=me.org_id,
+                    template_id="user_invitation",
+                    smtp_cfg=smtp_cfg,
+                    to_email=email,
+                    context=context,
+                    dedupe_key=f"invitation:{latest.id}",
+                )
+            except EmailRateLimitError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=f"Espera {exc.retry_after_seconds} segundos antes de reenviar otra invitación",
+                )
+            except Exception as exc:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"No se pudo reenviar el correo: {exc}")
+
+            action = "invitation_reused" if outcome.idempotent else "invitation_resent"
+            log_event(
+                action=action,
+                org_id=me.org_id,
+                actor_id=str(me.id),
+                actor_role=me.role.value,
+                target_type="user",
+                target_id=user_id,
+                metadata={"expires_at": latest.expires_at.isoformat(), "email": email},
+                ip=client_ip,
+                ip_salt=settings.ip_hash_salt,
+            )
+            trigger_webhook(
+                me.org_id,
+                "user.invited",
+                {
+                    "email": email,
+                    "role": role,
+                    "invited_by": str(me.id),
+                    "user_id": user_id,
+                    "expires_at": latest.expires_at.isoformat(),
+                    "resent": True,
+                    "idempotent": outcome.idempotent,
+                },
+            )
+            return {
+                "reused": True,
+                "invitation_url": link,
+                "expires_at": latest.expires_at.isoformat(),
+                "idempotent": outcome.idempotent,
+            }
 
     # Otherwise, create a new invitation
-    token, expires = create_invitation(org_id=me.org_id, invited_by=str(me.id), email=email, name=name, role=role)
-    link = f"http://localhost:3000/auth-signup-basic?token={token}&email={email}&name={name or ''}"
-    # Audit resend
-    client_ip = request.client.host if request.client else None
+    new_invitation = create_invitation(org_id=me.org_id, invited_by=str(me.id), email=email, name=name, role=role)
+    link = f"http://localhost:3000/auth-signup-basic?token={new_invitation.token}&email={email}&name={name or ''}"
+    context = {
+        "invitee_name": name or email,
+        "organization_name": manager.branding.brand_name,
+        "invite_link": link,
+        "invited_by_name": me.full_name or me.email,
+        "expires_at": new_invitation.expires_at.isoformat(),
+    }
+    try:
+        outcome = send_templated_email(
+            org_id=me.org_id,
+            template_id="user_invitation",
+            smtp_cfg=smtp_cfg,
+            to_email=email,
+            context=context,
+            dedupe_key=f"invitation:{new_invitation.invitation_id}",
+        )
+    except EmailRateLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Espera {exc.retry_after_seconds} segundos antes de reenviar otra invitación",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"No se pudo reenviar el correo: {exc}")
+
     log_event(
         action="invitation_resent",
         org_id=me.org_id,
@@ -428,7 +561,25 @@ def resend_invitation(user_id: str, request: Request, me: MeResponse = Depends(r
         ip=client_ip,
         ip_salt=settings.ip_hash_salt,
     )
-    return {"reused": False, "invitation_url": link, "expires_at": expires.isoformat()}
+    trigger_webhook(
+        me.org_id,
+        "user.invited",
+        {
+            "email": email,
+            "role": role,
+            "invited_by": str(me.id),
+            "user_id": user_id,
+            "expires_at": new_invitation.expires_at.isoformat(),
+            "resent": False,
+            "idempotent": outcome.idempotent,
+        },
+    )
+    return {
+        "reused": False,
+        "invitation_url": link,
+        "expires_at": new_invitation.expires_at.isoformat(),
+        "idempotent": outcome.idempotent,
+    }
 
 class PasswordPolicyPayload(BaseModel):
     min_length: int = 10

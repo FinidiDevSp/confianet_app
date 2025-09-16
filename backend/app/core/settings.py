@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     invitation_ttl_seconds: int = 900  # 15 minutes by default
     # Key seed for encrypting MFA secrets and recovery codes (derive to 32 bytes)
     mfa_encrypt_seed: str = "dev-mfa-seed-change-me"
+    email_rate_limit_seconds: int = 300  # 5 minutes between correos por destinatario
+    email_idempotency_seconds: int = 900  # 15 minutos para considerar idempotente
+    webhook_timeout_seconds: int = 5
 
 
 
