@@ -1,7 +1,71 @@
-import axios, { AxiosRequestConfig } from "axios";
+import axios, { AxiosError, AxiosRequestConfig } from "axios";
 import config from "config";
 
 const { api } = config;
+
+interface AuthSession {
+  access_token: string;
+  token_type?: string;
+  user?: unknown;
+  [key: string]: unknown;
+}
+
+interface AxiosRetryConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+}
+
+const AUTH_USER_KEY = "authUser";
+
+function setAuthorization(token: string): void {
+  axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+}
+
+function clearAuthorization(): void {
+  delete axios.defaults.headers.common["Authorization"];
+}
+
+const loadAuthSession = (): AuthSession | null => {
+  try {
+    const raw = sessionStorage.getItem(AUTH_USER_KEY);
+    if (!raw) {
+      return null;
+    }
+    return JSON.parse(raw) as AuthSession;
+  } catch {
+    return null;
+  }
+};
+
+const persistAuthSession = (data: AuthSession): void => {
+  try {
+    sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(data));
+  } catch {
+    /* ignore storage errors */
+  }
+};
+
+const clearAuthSession = (): void => {
+  try {
+    sessionStorage.removeItem(AUTH_USER_KEY);
+  } catch {
+    /* ignore storage errors */
+  }
+  clearAuthorization();
+};
+
+const getStoredAccessToken = (): string | null => {
+  const session = loadAuthSession();
+  return session?.access_token ?? session?.token ?? null;
+};
+
+const refreshClient = axios.create({ baseURL: api.API_URL, withCredentials: true });
+
+let refreshPromise: Promise<AuthSession> | null = null;
+
+const requestTokenRefresh = async (): Promise<AuthSession> => {
+  const response = await refreshClient.post<AuthSession>("/api/auth/refresh", {});
+  return response.data;
+};
 
 // default
 axios.defaults.baseURL = api.API_URL;
@@ -9,56 +73,92 @@ axios.defaults.withCredentials = true;
 // content type
 axios.defaults.headers.post["Content-Type"] = "application/json";
 
-// content type
-const authUser: any = sessionStorage.getItem("authUser");
-let initialToken: string | null = null;
-try {
-  const parsed = authUser ? JSON.parse(authUser) : null;
-  initialToken = parsed ? (parsed.access_token || parsed.token || null) : null;
-} catch {}
+const initialToken = getStoredAccessToken();
 if (initialToken) {
-  axios.defaults.headers.common["Authorization"] = "Bearer " + initialToken;
+  setAuthorization(initialToken);
 }
+
+const shouldBypassRefresh = (url?: string): boolean => {
+  if (!url) {
+    return false;
+  }
+  const bypassEndpoints = ["/api/auth/login", "/api/auth/refresh", "/api/auth/logout"];
+  return bypassEndpoints.some(path => url.includes(path));
+};
+
+const buildErrorMessage = (error: unknown): string => {
+  if (typeof error === "string") {
+    return error;
+  }
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const detail = (error.response?.data as { detail?: string } | undefined)?.detail;
+    switch (status) {
+      case 401:
+        return detail || "Invalid credentials";
+      case 403:
+        return detail || "Tu cuenta está suspendida o pendiente de activación";
+      case 404:
+        return detail || "Not found";
+      case 429:
+        return detail || "Too many attempts";
+      case 500:
+        return detail || "Internal Server Error";
+      default:
+        return detail || error.message || "Request error";
+    }
+  }
+  if (error instanceof Error) {
+    return error.message || "Request error";
+  }
+  return "Request error";
+};
 
 // intercepting to capture errors
 axios.interceptors.response.use(
-  function (response) {
-    return response.data ? response.data : response;
-  },
-  function (error) {
-    // Normalize Axios error into readable message
-    const status = error?.response?.status as number | undefined;
-    const detail = error?.response?.data?.detail as string | undefined;
-    let message: string;
-    switch (status) {
-      case 401:
-        message = detail || "Invalid credentials";
-        break;
-      case 403:
-        message = detail || "Tu cuenta está suspendida o pendiente de activación";
-        break;
-      case 404:
-        message = detail || "Not found";
-        break;
-      case 429:
-        message = detail || "Too many attempts";
-        break;
-      case 500:
-        message = detail || "Internal Server Error";
-        break;
-      default:
-        message = detail || error?.message || "Request error";
+  response => (response.data ? response.data : response),
+  async (error: AxiosError) => {
+    const status = error.response?.status;
+    const originalRequest = error.config as AxiosRetryConfig | undefined;
+
+    const hasToken = Boolean(getStoredAccessToken());
+
+    if (
+      status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !shouldBypassRefresh(originalRequest.url) &&
+      hasToken
+    ) {
+      originalRequest._retry = true;
+      try {
+        refreshPromise = refreshPromise ?? requestTokenRefresh();
+        const refreshed = await refreshPromise;
+        refreshPromise = null;
+        if (refreshed && refreshed.access_token) {
+          persistAuthSession(refreshed);
+          setAuthorization(refreshed.access_token);
+          const retryConfig: AxiosRequestConfig = {
+            ...originalRequest,
+            headers: {
+              ...(originalRequest.headers ?? {}),
+              Authorization: `Bearer ${refreshed.access_token}`,
+            },
+          };
+          return axios(retryConfig);
+        }
+        clearAuthSession();
+        return Promise.reject("Invalid refresh response");
+      } catch (refreshError) {
+        refreshPromise = null;
+        clearAuthSession();
+        return Promise.reject(buildErrorMessage(refreshError));
+      }
     }
-    return Promise.reject(message);
+
+    return Promise.reject(buildErrorMessage(error));
   }
 );
-/**
- * Sets the default authorization
- * @param {*} token
- */
-const setAuthorization = (token:string) => {
-  axios.defaults.headers.common["Authorization"] = "Bearer " + token;
-};
 
 class APIClient {
   /**
@@ -110,13 +210,10 @@ class APIClient {
     return axios.delete<T>(url, { ...config }) as unknown as Promise<T>;
   };
 }
-const getLoggedinUser = () => {
-  const user = sessionStorage.getItem("authUser");
-  if (!user) {
-    return null;
-  } else {
-    return JSON.parse(user);
-  }
+
+const getLoggedinUser = (): AuthSession | null => {
+  return loadAuthSession();
 };
 
 export { APIClient, setAuthorization, getLoggedinUser };
+export type { AuthSession };
