@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 from ..core.deps import require_roles
 from ..models.auth import MeResponse, Role
@@ -16,7 +16,7 @@ router = APIRouter()
 
 
 class CreateDelegationPayload(BaseModel):
-    grantee_user_id: str
+    grantee_email: EmailStr
     roles: List[Role] = Field(min_length=1)
     expires_at: datetime
 
@@ -27,17 +27,24 @@ def create(payload: CreateDelegationPayload, me: MeResponse = Depends(require_ro
     if payload.expires_at <= datetime.utcnow():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Expiration must be in the future")
     id_ = str(uuid4())
+    # resolve grantee by email within org
+    from ..repositories.users import users_repo
+    grantee = users_repo.get_by_email(str(payload.grantee_email))
+    if not grantee:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario destinatario no encontrado")
+    if grantee.org_id != me.org_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario fuera de tu organización")
     create_delegation(
         id_=id_,
         org_id=me.org_id,
         granter_id=str(me.id),
-        grantee_id=payload.grantee_user_id,
+        grantee_id=str(grantee.id),
         roles=[r.value for r in payload.roles],
         expires_at=payload.expires_at,
     )
     log_event(
         "delegation.created", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value,
-        target_type="user", target_id=payload.grantee_user_id, metadata={"roles": [r.value for r in payload.roles]},
+        target_type="user", target_id=str(grantee.id), metadata={"roles": [r.value for r in payload.roles], "grantee_email": str(payload.grantee_email)},
         ip=None, ip_salt="",
     )
     return {"id": id_}

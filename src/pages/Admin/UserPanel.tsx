@@ -9,9 +9,9 @@ const UserPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
-  const [targetUserId, setTargetUserId] = useState<string>('');
+  const [targetEmail, setTargetEmail] = useState<string>('');
   const [delegations, setDelegations] = useState<any[]>([]);
-  const [grantee, setGrantee] = useState<string>('');
+  const [granteeEmail, setGranteeEmail] = useState<string>('');
   const [roles, setRoles] = useState<string[]>(['responsable']);
   const [expiresAt, setExpiresAt] = useState<string>('');
   const [stepCode, setStepCode] = useState<string>('');
@@ -48,7 +48,7 @@ const UserPanel: React.FC = () => {
     try {
       setMessage(null); setError(null);
       if (!stepToken) { openStepUp(); return; }
-      const res: any = await axios.post('/api/auth/impersonate/start', { target_user_id: targetUserId }, { headers: { 'X-Step-Up': stepToken } });
+      const res: any = await axios.post('/api/auth/impersonate/start', { target_email: targetEmail }, { headers: { 'X-Step-Up': stepToken } });
       // Sustituir authUser en sessionStorage para navegar como impersonado
       sessionStorage.setItem('authUser', JSON.stringify(res));
       window.location.href = '/dashboard-audit';
@@ -67,7 +67,7 @@ const UserPanel: React.FC = () => {
     try {
       setMessage(null); setError(null);
       if (!expiresAt) { setError('Indica fecha/hora de expiración'); return; }
-      const payload = { grantee_user_id: grantee, roles: roles, expires_at: new Date(expiresAt).toISOString() };
+      const payload = { grantee_email: granteeEmail, roles: roles, expires_at: new Date(expiresAt).toISOString() };
       const res: any = await axios.post('/api/admin/delegations', payload);
       setMessage('Delegación creada');
       const del: any = await axios.get('/api/admin/delegations');
@@ -101,7 +101,7 @@ const UserPanel: React.FC = () => {
 
             <Card className="mt-3"><CardBody>
               <h6>Impersonar usuario</h6>
-              <div className="mb-2"><Label>ID de usuario</Label><Input value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)} placeholder="UUID del usuario" /></div>
+              <div className="mb-2"><Label>Email de usuario</Label><Input type="email" value={targetEmail} onChange={(e) => setTargetEmail(e.target.value)} placeholder="usuario@dominio.com" /></div>
               <Button color="warning" onClick={impersonate}>Impersonar (requiere 2FA)</Button>{' '}
               <Button color="secondary" onClick={stopImpersonate}>Terminar impersonación</Button>
             </CardBody></Card>
@@ -110,7 +110,7 @@ const UserPanel: React.FC = () => {
           <Col md={6}>
             <Card><CardBody>
               <h6>Delegar acceso temporal</h6>
-              <div className="mb-2"><Label>Usuario destinatario (ID)</Label><Input value={grantee} onChange={(e) => setGrantee(e.target.value)} placeholder="UUID grantee" /></div>
+              <div className="mb-2"><Label>Usuario destinatario (email)</Label><Input type="email" value={granteeEmail} onChange={(e) => setGranteeEmail(e.target.value)} placeholder="usuario@dominio.com" /></div>
               <div className="mb-2">
                 <Label>Roles delegados</Label>
                 <div className="d-flex gap-3">

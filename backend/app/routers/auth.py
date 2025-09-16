@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 from ..core.security import decode_jwt
 from ..core.settings import settings
@@ -284,20 +284,24 @@ def logout(response: Response, request: Request) -> Response:
 
 
 class ImpersonateStartPayload(BaseModel):
-    target_user_id: str
+    target_email: EmailStr
 
 
 @router.post("/impersonate/start")
 def impersonate_start(payload: ImpersonateStartPayload, request: Request, me: MeResponse = Depends(require_roles(Role.admin))) -> dict:
     _require_step_up(request, str(me.id))
     # Issue an access token for the target user without refresh (short-lived), include imp_by claim
-    target = me_from_user_id(payload.target_user_id)
-    if not target:
+    from ..repositories.users import users_repo
+    target_user = users_repo.get_by_email(str(payload.target_email))
+    if not target_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario objetivo no encontrado")
+    if target_user.org_id != me.org_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario fuera de tu organización")
+    target = me_from_user_id(str(target_user.id))
     from ..core.security import create_jwt
     access = create_jwt(subject=str(target.id), data={"role": str(target.role), "type": "access", "imp_by": str(me.id), "impersonating": True}, ttl_seconds=900)
     # audit
-    log_event("admin.impersonate.start", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type="user", target_id=str(target.id), metadata=None, ip=None, ip_salt=settings.ip_hash_salt)
+    log_event("admin.impersonate.start", org_id=me.org_id, actor_id=str(me.id), actor_role=me.role.value, target_type="user", target_id=str(target.id), metadata={"target_email": str(payload.target_email)}, ip=None, ip_salt=settings.ip_hash_salt)
     return {"access_token": access, "token_type": "bearer", "user": target, "impersonating": True}
 
 
