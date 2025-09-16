@@ -503,6 +503,7 @@ const UsersAdmin: React.FC = () => {
                 <p className="mb-0">
                   <strong>{targetUser.email}</strong> {targetUser.name ? `(${targetUser.name})` : ''}
                 </p>
+                <div className="text-muted small mt-2">Acción protegida por 2FA (válido ~5min)</div>
               </>
             ) : null}
           </ModalBody>
@@ -531,6 +532,7 @@ const UsersAdmin: React.FC = () => {
           <ModalBody>
             <Label>Código 2FA</Label>
             <Input placeholder="123456" value={stepCode} onChange={(e) => setStepCode(e.target.value)} />
+            <div className="text-muted small mt-2">Acción protegida por 2FA (válido ~5min)</div>
           </ModalBody>
           <ModalFooter>
             <Button color="primary" onClick={verifyStepUp}>
