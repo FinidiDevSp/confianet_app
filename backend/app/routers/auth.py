@@ -11,7 +11,7 @@ from ..core.security import decode_jwt
 from ..core.settings import settings
 from ..models.auth import LoginRequest, MeResponse, TokenResponse, UserOut, Role
 from ..services.auth import authenticate_user, issue_tokens, me_from_user_id
-from ..core.deps import require_roles
+from ..core.deps import require_roles, require_real_roles
 from ..repositories.refresh_tokens import is_refresh_token_valid, revoke_refresh_token
 from ..repositories.audit import log_event
 from ..core.rate_limit import rate_limiter
