@@ -5,6 +5,7 @@ const { api } = config;
 
 interface AuthSession {
   access_token: string;
+  token?: string;
   token_type?: string;
   user?: unknown;
   [key: string]: unknown;
@@ -55,7 +56,19 @@ const clearAuthSession = (): void => {
 
 const getStoredAccessToken = (): string | null => {
   const session = loadAuthSession();
-  return session?.access_token ?? session?.token ?? null;
+  if (!session) {
+    return null;
+  }
+
+  if (typeof session.access_token === "string" && session.access_token.length > 0) {
+    return session.access_token;
+  }
+
+  if (typeof session.token === "string" && session.token.length > 0) {
+    return session.token;
+  }
+
+  return null;
 };
 
 const refreshClient = axios.create({ baseURL: api.API_URL, withCredentials: true });
