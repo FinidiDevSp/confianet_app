@@ -11,6 +11,7 @@ const UserPanel: React.FC = () => {
 
   const [targetEmail, setTargetEmail] = useState<string>('');
   const [delegations, setDelegations] = useState<any[]>([]);
+  const [myDelegations, setMyDelegations] = useState<any[]>([]);
   const [granteeEmail, setGranteeEmail] = useState<string>('');
   const [roles, setRoles] = useState<string[]>(['responsable']);
   const [expiresAt, setExpiresAt] = useState<string>('');
@@ -28,13 +29,16 @@ const UserPanel: React.FC = () => {
       try {
         const meRes: any = await axios.get('/api/auth/me');
         setMe(meRes);
+        // Mis delegaciones activas (para cabecera)
+        try {
+          const mine: any = await axios.get('/api/admin/delegations/me/active');
+          setMyDelegations(mine as any);
+        } catch {}
+        // Listado general de la organización solo si admin real
         if (meRes.role === 'admin') {
-          const del: any = await axios.get('/api/admin/delegations');
-          setDelegations(del as any);
-        } else {
           try {
-            const myDel: any = await axios.get('/api/admin/delegations/me/active');
-            setDelegations(myDel as any);
+            const del: any = await axios.get('/api/admin/delegations');
+            setDelegations(del as any);
           } catch {}
         }
       } catch (e:any) {}
@@ -94,8 +98,8 @@ const UserPanel: React.FC = () => {
           {me && (
             <p className="text-muted">
               ROL REAL: <strong>{me.role}</strong>
-              {delegations && delegations.length > 0 && (
-                <> | ROL ACTUAL: <strong>{ String(delegations[0].roles_csv || '').split(',')[0] }</strong> (hasta { new Date(delegations[0].expires_at).toLocaleString() })</>
+              {myDelegations && myDelegations.length > 0 && (
+                <> | ROL ACTUAL: <strong>{ String(myDelegations[0].roles_csv || '').split(',')[0] }</strong> (hasta { new Date(myDelegations[0].expires_at).toLocaleString() })</>
               )}
             </p>
           )}
@@ -105,6 +109,7 @@ const UserPanel: React.FC = () => {
 
         <Row className="g-3">
           <Col md={6}>
+            {me?.role === 'admin' && (
             <Card><CardBody>
               <h6>Mis datos</h6>
               {me ? (
@@ -115,13 +120,14 @@ const UserPanel: React.FC = () => {
                 </ul>
               ) : <Spinner size="sm"/>}
             </CardBody></Card>
+            )
 
-            <Card className="mt-3"><CardBody>
+            {me?.role === 'admin' && (<Card className="mt-3"><CardBody>
               <h6>Impersonar usuario</h6>
               <div className="mb-2"><Label>Email de usuario</Label><Input type="email" value={targetEmail} onChange={(e) => setTargetEmail(e.target.value)} placeholder="usuario@dominio.com" /></div>
               <Button color="warning" onClick={impersonate}>Impersonar (requiere 2FA)</Button>{' '}
               <Button color="secondary" onClick={stopImpersonate}>Terminar impersonación</Button>
-            </CardBody></Card>
+            </CardBody></Card>)}
           </Col>
 
           <Col md={6}>
