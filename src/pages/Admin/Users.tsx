@@ -5,6 +5,7 @@ import {
   Col,
   Card,
   CardBody,
+  CardHeader,
   Form,
   Label,
   Input,
@@ -464,14 +465,23 @@ const UsersAdmin: React.FC = () => {
           </Alert>
         )}
 
-        <Row>
+        <Row className="g-4">
           <Col xl={4} lg={6}>
-            <Card>
+            <Card className="h-100">
+              <CardHeader className="d-flex align-items-center justify-content-between gap-2">
+                <h5 className="card-title mb-0">
+                  {editingUser ? 'Editar usuario' : 'Invitar usuario'}
+                </h5>
+                <span
+                  className={`badge text-uppercase fs-11 ${editingUser ? 'bg-warning-subtle text-warning' : 'bg-primary-subtle text-primary'}`}
+                >
+                  {editingUser ? 'Modo edición' : 'Nueva invitación'}
+                </span>
+              </CardHeader>
               <CardBody>
-                <h6>{editingUser ? 'Editar usuario' : 'Invitar usuario'}</h6>
                 <Form onSubmit={submit}>
                   <div className="mb-3">
-                    <Label>Correo</Label>
+                    <Label className="form-label">Correo</Label>
                     <Input
                       type="email"
                       value={email}
@@ -481,11 +491,11 @@ const UsersAdmin: React.FC = () => {
                     />
                   </div>
                   <div className="mb-3">
-                    <Label>Nombre</Label>
+                    <Label className="form-label">Nombre</Label>
                     <Input value={name} onChange={(e) => setName(e.target.value)} />
                   </div>
                   <div className="mb-3">
-                    <Label>Rol</Label>
+                    <Label className="form-label">Rol</Label>
                     <Input type="select" value={role} onChange={(e) => setRole(e.target.value)}>
                       <option value="investigador">investigador</option>
                       <option value="responsable">responsable</option>
@@ -508,11 +518,11 @@ const UsersAdmin: React.FC = () => {
                     </div>
                   )}
                   {editingUser && (
-                    <div className="mb-2 text-muted" style={{ fontSize: 12 }}>
+                    <div className="fs-12 text-muted mb-2">
                       La activación de 2FA la realiza cada usuario en su perfil (Seguridad → 2FA).
                     </div>
                   )}
-                  <div className="d-flex gap-2">
+                  <div className="d-flex flex-wrap gap-2">
                     <Button color="primary" type="submit">
                       {editingUser ? 'EDITAR' : 'Enviar invitación'}
                     </Button>
@@ -538,207 +548,255 @@ const UsersAdmin: React.FC = () => {
 
           <Col xl={8} lg={12}>
             <Card>
+              <CardHeader className="d-flex flex-wrap align-items-center gap-2">
+                <div className="flex-grow-1">
+                  <h5 className="card-title mb-1">Usuarios</h5>
+                  <p className="text-muted mb-0">
+                    Gestiona y monitorea las cuentas registradas.
+                  </p>
+                </div>
+                <div className="d-flex flex-wrap gap-2">
+                  <Button color="light" size="sm" onClick={exportCsv} className="btn-soft-secondary">
+                    <FeatherIcon icon="download" className="icon-sm me-1" /> Exportar CSV
+                  </Button>
+                  {(roleFilters.length > 0 || statusFilters.length > 0) && (
+                    <Button color="link" size="sm" onClick={clearFilters} className="text-decoration-none">
+                      Limpiar filtros
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
               <CardBody>
-                <h6>Usuarios</h6>
                 {loading ? (
-                  <Spinner size="sm" />
+                  <div className="py-5 text-center">
+                    <Spinner size="sm" className="me-2" />
+                    Cargando usuarios...
+                  </div>
                 ) : (
-                  <div className="table-responsive" style={{ maxHeight: '60vh' }}>
-                    <div className="d-flex flex-column flex-xl-row gap-3 justify-content-between align-items-xl-start mb-3">
-                      <div>
-                        <div className="fw-semibold">Total usuarios (página): {users.length}</div>
-                        <div className="text-muted small">
-                          Coincidencias visibles: {sorted.length}
+                  <>
+                    <Row className="g-3 mb-4">
+                      <Col xxl={4} md={6}>
+                        <div className="border border-dashed rounded-3 p-3 h-100">
+                          <p className="text-muted text-uppercase fs-12 mb-2">
+                            Total usuarios (página)
+                          </p>
+                          <h5 className="mb-1">{users.length}</h5>
+                          <p className="text-muted mb-0">
+                            Coincidencias visibles:{' '}
+                            <span className="text-body fw-semibold">{sorted.length}</span>
+                          </p>
                         </div>
-                      </div>
-                      <div className="flex-grow-1">
-                        <div className="text-uppercase text-muted small mb-1">Totales por rol (página)</div>
-                        <div className="d-flex flex-wrap gap-2 align-items-center">
-                          {roleTotals.length > 0 ? (
-                            roleTotals.map(([roleName, total]) => (
-                              <Badge key={roleName} color="light" className="text-dark border">
-                                {roleName}: {total}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-muted small">Sin usuarios en la página actual</span>
-                          )}
+                      </Col>
+                      <Col xxl={8} md={6}>
+                        <div className="border border-dashed rounded-3 p-3 h-100">
+                          <p className="text-muted text-uppercase fs-12 mb-2">
+                            Totales por rol (página)
+                          </p>
+                          <div className="hstack gap-2 flex-wrap">
+                            {roleTotals.length > 0 ? (
+                              roleTotals.map(([roleName, total]) => (
+                                <span
+                                  key={roleName}
+                                  className="badge bg-primary-subtle text-primary fs-13 text-capitalize"
+                                >
+                                  {roleName}
+                                  <span className="ms-1 fw-semibold">{total}</span>
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-muted fs-13">
+                                Sin usuarios en la página actual
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="d-flex gap-2 justify-content-xl-end">
-                        <Button color="light" size="sm" onClick={exportCsv}>
-                          <FeatherIcon icon="download" className="icon-sm me-1" /> Exportar CSV
-                        </Button>
-                        {(roleFilters.length > 0 || statusFilters.length > 0) && (
-                          <Button color="link" size="sm" onClick={clearFilters}>
-                            Limpiar filtros
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="d-flex flex-column flex-lg-row gap-3 mb-3">
-                      <div className="flex-grow-1">
-                        <Input
-                          placeholder="Buscar (email, nombre, rol)"
-                          value={query}
-                          onChange={(e) => setQuery(e.target.value)}
-                        />
-                      </div>
-                      <div className="d-flex flex-wrap gap-2 align-items-center">
-                        <Input
-                          type="select"
-                          value={sortField}
-                          onChange={(e) => setSortField(e.target.value as SortField)}
-                          style={{ minWidth: 180 }}
-                        >
-                          <option value="created_at">Ordenar por fecha de alta</option>
-                          <option value="name">Ordenar por nombre</option>
-                          <option value="email">Ordenar por email</option>
-                          <option value="role">Ordenar por rol</option>
-                          <option value="status">Ordenar por estado</option>
-                        </Input>
-                        <Button
-                          color="light"
-                          size="sm"
-                          onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                          aria-label={`Cambiar orden (${sortOrder === 'asc' ? 'ascendente' : 'descendente'})`}
-                        >
-                          <FeatherIcon
-                            icon={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'}
-                            className="icon-sm me-1"
+                      </Col>
+                    </Row>
+                    <Row className="g-3 align-items-center mb-4">
+                      <Col lg={5}>
+                        <div className="search-box">
+                          <Input
+                            type="search"
+                            className="form-control"
+                            placeholder="Buscar (email, nombre, rol)"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
                           />
-                          {sortOrder === 'asc' ? 'Ascendente' : 'Descendente'}
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="d-flex flex-column flex-lg-row gap-4 mb-3">
-                      <div className="flex-grow-1">
-                        <div className="text-uppercase text-muted small mb-2">Filtrar por rol</div>
-                        <div className="d-flex flex-wrap gap-2">
-                          {rolesAvailable.map((roleName) => (
-                            <Button
-                              key={roleName}
-                              color="primary"
-                              outline={!roleFilters.includes(roleName)}
-                              size="sm"
-                              className="rounded-pill"
-                              onClick={() => toggleRoleFilter(roleName)}
-                            >
-                              {roleName}
-                              <Badge color={roleFilters.includes(roleName) ? 'light' : 'secondary'} pill className="ms-2">
-                                {roleCounts[roleName] ?? 0}
-                              </Badge>
-                            </Button>
-                          ))}
-                          {rolesAvailable.length === 0 && (
-                            <span className="text-muted small">Sin roles disponibles</span>
-                          )}
+                          <i className="ri-search-line search-icon" />
                         </div>
-                      </div>
-                      <div>
-                        <div className="text-uppercase text-muted small mb-2">Filtrar por estado</div>
-                        <div className="d-flex flex-wrap gap-2">
-                          {statusesAvailable.map((statusName) => (
-                            <Button
-                              key={statusName}
-                              color="success"
-                              outline={!statusFilters.includes(statusName)}
-                              size="sm"
-                              className="rounded-pill text-capitalize"
-                              onClick={() => toggleStatusFilter(statusName)}
-                            >
-                              {statusName}
-                              <Badge color={statusFilters.includes(statusName) ? 'light' : 'secondary'} pill className="ms-2">
-                                {statusCounts[statusName] ?? 0}
-                              </Badge>
-                            </Button>
-                          ))}
-                          {statusesAvailable.length === 0 && (
-                            <span className="text-muted small">Sin estados disponibles</span>
-                          )}
+                      </Col>
+                      <Col lg={7}>
+                        <div className="d-flex flex-wrap gap-2 justify-content-lg-end">
+                          <Input
+                            type="select"
+                            value={sortField}
+                            onChange={(e) => setSortField(e.target.value as SortField)}
+                            className="w-auto"
+                          >
+                            <option value="created_at">Ordenar por fecha de alta</option>
+                            <option value="name">Ordenar por nombre</option>
+                            <option value="email">Ordenar por email</option>
+                            <option value="role">Ordenar por rol</option>
+                            <option value="status">Ordenar por estado</option>
+                          </Input>
+                          <Button
+                            color="secondary"
+                            outline
+                            size="sm"
+                            onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                            aria-label={`Cambiar orden (${sortOrder === 'asc' ? 'ascendente' : 'descendente'})`}
+                          >
+                            <FeatherIcon
+                              icon={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'}
+                              className="icon-sm me-1"
+                            />
+                            {sortOrder === 'asc' ? 'Ascendente' : 'Descendente'}
+                          </Button>
                         </div>
-                      </div>
-                    </div>
-                    <Table className="table align-middle table-striped">
-                      <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#f8f9fa' }}>
-                        <tr>
-                          <th>Email</th>
-                          <th>Nombre</th>
-                          <th>Rol</th>
-                          <th>Estado</th>
-                          <th>2FA</th>
-                          <th>Alta</th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sorted.map((u) => (
-                          <tr key={u.id}>
-                            <td>{u.email}</td>
-                            <td>{u.name || '-'}</td>
-                            <td>{u.role}</td>
-                            <td>
-                              <Badge color={badgeColor(u.status)}>{u.status}</Badge>
-                            </td>
-                            <td>
-                              {String(u.mfa_enabled) === '1' || u.mfa_enabled === true ? 'Sí' : 'No'}
-                            </td>
-                            <td>{new Date(u.created_at).toLocaleDateString()}</td>
-                            <td className="text-nowrap">
+                      </Col>
+                    </Row>
+                    <Row className="g-4 mb-4">
+                      <Col xxl={7}>
+                        <div>
+                          <p className="text-muted text-uppercase fs-12 mb-2">Filtrar por rol</p>
+                          <div className="d-flex flex-wrap gap-2">
+                            {rolesAvailable.map((roleName) => (
                               <Button
+                                key={roleName}
+                                color="primary"
+                                outline={!roleFilters.includes(roleName)}
                                 size="sm"
-                                color="light"
-                                aria-label="Editar"
-                                title="Editar"
-                                onClick={() => startEdit(u)}
+                                className="rounded-pill text-capitalize"
+                                onClick={() => toggleRoleFilter(roleName)}
                               >
-                                <FeatherIcon icon="edit-2" className="icon-sm" />
-                              </Button>{' '}
-                              {u.status === 'suspended' ? (
-                                <Button
-                                  size="sm"
-                                  color="success"
-                                  aria-label="Activar"
-                                  title="Activar"
-                                  onClick={() => openConfirm(u)}
+                                {roleName}
+                                <Badge
+                                  color={roleFilters.includes(roleName) ? 'light' : 'secondary'}
+                                  pill
+                                  className="ms-2"
                                 >
-                                  <FeatherIcon icon="user-check" className="icon-sm" />
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  color="warning"
-                                  aria-label="Suspender o eliminar"
-                                  title="Suspender o eliminar"
-                                  onClick={() => openConfirm(u)}
+                                  {roleCounts[roleName] ?? 0}
+                                </Badge>
+                              </Button>
+                            ))}
+                            {rolesAvailable.length === 0 && (
+                              <span className="text-muted fs-13">Sin roles disponibles</span>
+                            )}
+                          </div>
+                        </div>
+                      </Col>
+                      <Col xxl={5}>
+                        <div>
+                          <p className="text-muted text-uppercase fs-12 mb-2">Filtrar por estado</p>
+                          <div className="d-flex flex-wrap gap-2">
+                            {statusesAvailable.map((statusName) => (
+                              <Button
+                                key={statusName}
+                                color="success"
+                                outline={!statusFilters.includes(statusName)}
+                                size="sm"
+                                className="rounded-pill text-capitalize"
+                                onClick={() => toggleStatusFilter(statusName)}
+                              >
+                                {statusName}
+                                <Badge
+                                  color={statusFilters.includes(statusName) ? 'light' : 'secondary'}
+                                  pill
+                                  className="ms-2"
                                 >
-                                  <FeatherIcon icon="user-x" className="icon-sm" />
-                                </Button>
-                              )}{' '}
-                              {u.status === 'pending' && (
-                                <Button
-                                  size="sm"
-                                  color="info"
-                                  aria-label="Reenviar invitación"
-                                  title="Reenviar invitación"
-                                  onClick={() => onResendInvitation(u)}
-                                >
-                                  <FeatherIcon icon="send" className="icon-sm" />
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                        {sorted.length === 0 && (
+                                  {statusCounts[statusName] ?? 0}
+                                </Badge>
+                              </Button>
+                            ))}
+                            {statusesAvailable.length === 0 && (
+                              <span className="text-muted fs-13">Sin estados disponibles</span>
+                            )}
+                          </div>
+                        </div>
+                      </Col>
+                    </Row>
+                    <div className="table-responsive table-card" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                      <Table className="table align-middle table-striped mb-0">
+                        <thead className="table-light">
                           <tr>
-                            <td colSpan={7} className="text-center">
-                              Sin usuarios
-                            </td>
+                            <th>Email</th>
+                            <th>Nombre</th>
+                            <th>Rol</th>
+                            <th>Estado</th>
+                            <th>2FA</th>
+                            <th>Alta</th>
+                            <th>Acciones</th>
                           </tr>
-                        )}
-                      </tbody>
-                    </Table>
-                    <div className="d-flex justify-content-between align-items-center mt-2">
+                        </thead>
+                        <tbody>
+                          {sorted.map((u) => (
+                            <tr key={u.id}>
+                              <td>{u.email}</td>
+                              <td>{u.name || '-'}</td>
+                              <td>{u.role}</td>
+                              <td>
+                                <Badge color={badgeColor(u.status)}>{u.status}</Badge>
+                              </td>
+                              <td>
+                                {String(u.mfa_enabled) === '1' || u.mfa_enabled === true ? 'Sí' : 'No'}
+                              </td>
+                              <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                              <td className="text-nowrap">
+                                <Button
+                                  size="sm"
+                                  color="light"
+                                  aria-label="Editar"
+                                  title="Editar"
+                                  onClick={() => startEdit(u)}
+                                >
+                                  <FeatherIcon icon="edit-2" className="icon-sm" />
+                                </Button>{' '}
+                                {u.status === 'suspended' ? (
+                                  <Button
+                                    size="sm"
+                                    color="success"
+                                    aria-label="Activar"
+                                    title="Activar"
+                                    onClick={() => openConfirm(u)}
+                                  >
+                                    <FeatherIcon icon="user-check" className="icon-sm" />
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    color="warning"
+                                    aria-label="Suspender o eliminar"
+                                    title="Suspender o eliminar"
+                                    onClick={() => openConfirm(u)}
+                                  >
+                                    <FeatherIcon icon="user-x" className="icon-sm" />
+                                  </Button>
+                                )}{' '}
+                                {u.status === 'pending' && (
+                                  <Button
+                                    size="sm"
+                                    color="info"
+                                    aria-label="Reenviar invitación"
+                                    title="Reenviar invitación"
+                                    onClick={() => onResendInvitation(u)}
+                                  >
+                                    <FeatherIcon icon="send" className="icon-sm" />
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {sorted.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="text-center">
+                                Sin usuarios
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </Table>
+                    </div>
+                    <div className="d-flex justify-content-between align-items-center mt-3">
                       <div className="d-flex align-items-center gap-2">
                         <span className="text-muted small">Página {page}</span>
                         <select
@@ -772,7 +830,7 @@ const UsersAdmin: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </CardBody>
             </Card>
