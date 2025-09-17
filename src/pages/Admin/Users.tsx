@@ -35,6 +35,98 @@ type UserRow = {
 
 type SortField = 'created_at' | 'email' | 'name' | 'role' | 'status';
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const toOptionalString = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return String(value);
+  }
+  return null;
+};
+
+const parseMfaFlag = (value: unknown): string | boolean | undefined => {
+  if (typeof value === 'boolean' || typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+  return undefined;
+};
+
+const normalizeUserRow = (candidate: unknown): UserRow | null => {
+  if (!isRecord(candidate)) {
+    return null;
+  }
+
+  const id = toOptionalString(candidate.id);
+  const email = toOptionalString(candidate.email);
+  const role = toOptionalString(candidate.role);
+  const status = toOptionalString(candidate.status ?? candidate.state);
+  const createdAt = toOptionalString(candidate.created_at ?? candidate.createdAt);
+
+  if (!id || !email || !role || !status || !createdAt) {
+    return null;
+  }
+
+  const name = toOptionalString(candidate.name);
+  const mfa = parseMfaFlag(candidate.mfa_enabled ?? candidate.mfaEnabled);
+
+  const normalized: UserRow = {
+    id,
+    email,
+    role,
+    status,
+    created_at: createdAt,
+    name,
+  };
+
+  if (mfa !== undefined) {
+    normalized.mfa_enabled = mfa;
+  }
+
+  return normalized;
+};
+
+const extractUserCollection = (payload: unknown): unknown[] | null => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (isRecord(payload)) {
+    const maybeCollection =
+      payload.data ?? payload.items ?? payload.results ?? payload.users ?? null;
+
+    if (Array.isArray(maybeCollection)) {
+      return maybeCollection;
+    }
+  }
+
+  return null;
+};
+
+const parseUsersResponse = (payload: unknown): UserRow[] | null => {
+  const collection = extractUserCollection(payload);
+
+  if (!collection) {
+    return null;
+  }
+
+  const normalized = collection
+    .map(normalizeUserRow)
+    .filter((user): user is UserRow => user !== null);
+
+  if (normalized.length === 0 && collection.length > 0) {
+    return null;
+  }
+
+  return normalized;
+};
+
 const UsersAdmin: React.FC = () => {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -112,8 +204,13 @@ const UsersAdmin: React.FC = () => {
       const res = await axios.get<UserRow[]>(`/api/users`, {
         params: { limit: pageSize, offset: (page - 1) * pageSize },
       });
-      // axios devuelve { data }, pero respetamos el patrón existente
-      setUsers((res as unknown as { data: UserRow[] }).data ?? (res as unknown as UserRow[]));
+      const parsed = parseUsersResponse(res);
+
+      if (parsed === null) {
+        throw new Error('Respuesta de usuarios inválida');
+      }
+
+      setUsers(parsed);
     } catch (e: any) {
       setError(e?.message || 'Error cargando usuarios');
     } finally {
