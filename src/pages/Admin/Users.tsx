@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Container,
   Row,
@@ -32,6 +32,8 @@ type UserRow = {
   created_at: string;
 };
 
+type SortField = 'created_at' | 'email' | 'name' | 'role' | 'status';
+
 const UsersAdmin: React.FC = () => {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -45,6 +47,11 @@ const UsersAdmin: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [roleFilters, setRoleFilters] = useState<string[]>([]);
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [confirmOpen, setConfirmOpen] = useState<boolean>(false);
@@ -113,18 +120,150 @@ const UsersAdmin: React.FC = () => {
     }
   };
 
-  const filtered = users.filter((u) => {
-    if (!query) return true;
+  const searchFiltered = useMemo(() => {
+    if (!query) return users;
     const q = query.toLowerCase();
-    return (
-      u.email?.toLowerCase().includes(q) ||
-      (u.name || '').toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q) ||
-      u.status.toLowerCase().includes(q)
+    return users.filter((u) =>
+      [u.email, u.name ?? '', u.role, u.status]
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
     );
-  });
+  }, [users, query]);
+
+  const roleFiltered = useMemo(() => {
+    if (roleFilters.length === 0) return searchFiltered;
+    return searchFiltered.filter((u) => roleFilters.includes(u.role));
+  }, [searchFiltered, roleFilters]);
+
+  const statusFiltered = useMemo(() => {
+    if (statusFilters.length === 0) return searchFiltered;
+    return searchFiltered.filter((u) => statusFilters.includes(u.status));
+  }, [searchFiltered, statusFilters]);
+
+  const filtered = useMemo(
+    () =>
+      searchFiltered.filter((u) => {
+        const matchRole = roleFilters.length === 0 || roleFilters.includes(u.role);
+        const matchStatus = statusFilters.length === 0 || statusFilters.includes(u.status);
+        return matchRole && matchStatus;
+      }),
+    [searchFiltered, roleFilters, statusFilters]
+  );
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      let result = 0;
+      switch (sortField) {
+        case 'email':
+          result = a.email.localeCompare(b.email, 'es', { sensitivity: 'base' });
+          break;
+        case 'name':
+          result = (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
+          break;
+        case 'role':
+          result = a.role.localeCompare(b.role, 'es', { sensitivity: 'base' });
+          break;
+        case 'status':
+          result = a.status.localeCompare(b.status, 'es', { sensitivity: 'base' });
+          break;
+        case 'created_at':
+        default:
+          result = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+      }
+      return sortOrder === 'asc' ? result : -result;
+    });
+    return arr;
+  }, [filtered, sortField, sortOrder]);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const user of roleFiltered) {
+      counts[user.status] = (counts[user.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [roleFiltered]);
+
+  const roleCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const user of statusFiltered) {
+      counts[user.role] = (counts[user.role] ?? 0) + 1;
+    }
+    return counts;
+  }, [statusFiltered]);
+
+  const roleTotals = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const user of users) {
+      counts[user.role] = (counts[user.role] ?? 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }));
+  }, [users]);
+
+  const rolesAvailable = useMemo(() => {
+    const set = new Set<string>();
+    for (const user of users) {
+      set.add(user.role);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [users]);
+
+  const statusesAvailable = useMemo(() => {
+    const set = new Set<string>();
+    for (const user of users) {
+      set.add(user.status);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [users]);
   const hasPrev = page > 1;
   const hasNext = users.length >= pageSize; // heurística simple
+
+  const toggleRoleFilter = (value: string) => {
+    setRoleFilters((prev) =>
+      prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
+    );
+  };
+
+  const toggleStatusFilter = (value: string) => {
+    setStatusFilters((prev) =>
+      prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
+    );
+  };
+
+  const clearFilters = () => {
+    setRoleFilters([]);
+    setStatusFilters([]);
+  };
+
+  const exportCsv = () => {
+    if (sorted.length === 0) {
+      setError('No hay datos para exportar');
+      return;
+    }
+    const headers = ['Email', 'Nombre', 'Rol', 'Estado', '2FA', 'Alta'];
+    const rows = sorted.map((u) => [
+      u.email,
+      u.name ?? '',
+      u.role,
+      u.status,
+      String(u.mfa_enabled === true || String(u.mfa_enabled) === '1' ? 'Sí' : 'No'),
+      new Date(u.created_at).toISOString(),
+    ]);
+    const csvContent = [headers, ...rows]
+      .map((cols) => cols.map((col) => `"${String(col).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `usuarios_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const badgeColor = (status: string): string => {
     switch (status) {
@@ -404,17 +543,124 @@ const UsersAdmin: React.FC = () => {
                 {loading ? (
                   <Spinner size="sm" />
                 ) : (
-                  <div className="table-responsive">
-                    <div className="d-flex justify-content-end align-items-center mb-2">
-                      <Input
-                        placeholder="Buscar (email, nombre, rol)"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        style={{ maxWidth: 340 }}
-                      />
+                  <div className="table-responsive" style={{ maxHeight: '60vh' }}>
+                    <div className="d-flex flex-column flex-xl-row gap-3 justify-content-between align-items-xl-start mb-3">
+                      <div>
+                        <div className="fw-semibold">Total usuarios (página): {users.length}</div>
+                        <div className="text-muted small">
+                          Coincidencias visibles: {sorted.length}
+                        </div>
+                      </div>
+                      <div className="flex-grow-1">
+                        <div className="text-uppercase text-muted small mb-1">Totales por rol (página)</div>
+                        <div className="d-flex flex-wrap gap-2 align-items-center">
+                          {roleTotals.length > 0 ? (
+                            roleTotals.map(([roleName, total]) => (
+                              <Badge key={roleName} color="light" className="text-dark border">
+                                {roleName}: {total}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-muted small">Sin usuarios en la página actual</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="d-flex gap-2 justify-content-xl-end">
+                        <Button color="light" size="sm" onClick={exportCsv}>
+                          <FeatherIcon icon="download" className="icon-sm me-1" /> Exportar CSV
+                        </Button>
+                        {(roleFilters.length > 0 || statusFilters.length > 0) && (
+                          <Button color="link" size="sm" onClick={clearFilters}>
+                            Limpiar filtros
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="d-flex flex-column flex-lg-row gap-3 mb-3">
+                      <div className="flex-grow-1">
+                        <Input
+                          placeholder="Buscar (email, nombre, rol)"
+                          value={query}
+                          onChange={(e) => setQuery(e.target.value)}
+                        />
+                      </div>
+                      <div className="d-flex flex-wrap gap-2 align-items-center">
+                        <Input
+                          type="select"
+                          value={sortField}
+                          onChange={(e) => setSortField(e.target.value as SortField)}
+                          style={{ minWidth: 180 }}
+                        >
+                          <option value="created_at">Ordenar por fecha de alta</option>
+                          <option value="name">Ordenar por nombre</option>
+                          <option value="email">Ordenar por email</option>
+                          <option value="role">Ordenar por rol</option>
+                          <option value="status">Ordenar por estado</option>
+                        </Input>
+                        <Button
+                          color="light"
+                          size="sm"
+                          onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                          aria-label={`Cambiar orden (${sortOrder === 'asc' ? 'ascendente' : 'descendente'})`}
+                        >
+                          <FeatherIcon
+                            icon={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'}
+                            className="icon-sm me-1"
+                          />
+                          {sortOrder === 'asc' ? 'Ascendente' : 'Descendente'}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="d-flex flex-column flex-lg-row gap-4 mb-3">
+                      <div className="flex-grow-1">
+                        <div className="text-uppercase text-muted small mb-2">Filtrar por rol</div>
+                        <div className="d-flex flex-wrap gap-2">
+                          {rolesAvailable.map((roleName) => (
+                            <Button
+                              key={roleName}
+                              color="primary"
+                              outline={!roleFilters.includes(roleName)}
+                              size="sm"
+                              className="rounded-pill"
+                              onClick={() => toggleRoleFilter(roleName)}
+                            >
+                              {roleName}
+                              <Badge color={roleFilters.includes(roleName) ? 'light' : 'secondary'} pill className="ms-2">
+                                {roleCounts[roleName] ?? 0}
+                              </Badge>
+                            </Button>
+                          ))}
+                          {rolesAvailable.length === 0 && (
+                            <span className="text-muted small">Sin roles disponibles</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-uppercase text-muted small mb-2">Filtrar por estado</div>
+                        <div className="d-flex flex-wrap gap-2">
+                          {statusesAvailable.map((statusName) => (
+                            <Button
+                              key={statusName}
+                              color="success"
+                              outline={!statusFilters.includes(statusName)}
+                              size="sm"
+                              className="rounded-pill text-capitalize"
+                              onClick={() => toggleStatusFilter(statusName)}
+                            >
+                              {statusName}
+                              <Badge color={statusFilters.includes(statusName) ? 'light' : 'secondary'} pill className="ms-2">
+                                {statusCounts[statusName] ?? 0}
+                              </Badge>
+                            </Button>
+                          ))}
+                          {statusesAvailable.length === 0 && (
+                            <span className="text-muted small">Sin estados disponibles</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <Table className="table align-middle table-striped">
-                      <thead>
+                      <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#f8f9fa' }}>
                         <tr>
                           <th>Email</th>
                           <th>Nombre</th>
@@ -426,7 +672,7 @@ const UsersAdmin: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {filtered.map((u) => (
+                        {sorted.map((u) => (
                           <tr key={u.id}>
                             <td>{u.email}</td>
                             <td>{u.name || '-'}</td>
@@ -483,7 +729,7 @@ const UsersAdmin: React.FC = () => {
                             </td>
                           </tr>
                         ))}
-                        {filtered.length === 0 && (
+                        {sorted.length === 0 && (
                           <tr>
                             <td colSpan={7} className="text-center">
                               Sin usuarios
@@ -589,3 +835,4 @@ const UsersAdmin: React.FC = () => {
 };
 
 export default UsersAdmin;
+
