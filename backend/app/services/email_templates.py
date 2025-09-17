@@ -233,13 +233,14 @@ class EmailTemplateManager:
     def render(self, template_id: str, context: Dict[str, Any]) -> RenderedEmail:
         template = self.get_template(template_id)
         env = Environment(loader=BaseLoader(), autoescape=select_autoescape(["html", "xml"]))
-        base_context = {**context, "brand": self.branding.model_dump()}
+        brand_context = self.branding.model_dump()
+        base_context = {**context, "brand": brand_context}
         subject_template = env.from_string(template.subject_template)
         subject = subject_template.render(**base_context)
         body_template = env.from_string(template.body_html)
         body_html = body_template.render(**base_context)
         layout = env.from_string(DEFAULT_LAYOUT)
-        html = layout.render(subject=subject, brand=self.branding.model_dump(), content=Markup(body_html), **base_context)
+        html = layout.render(subject=subject, content=Markup(body_html), **base_context)
         return RenderedEmail(subject=subject, html=html)
 
     def sample_context(self, template_id: str) -> Dict[str, Any]:
