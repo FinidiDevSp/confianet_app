@@ -17,16 +17,7 @@ type EmailTemplate = {
   updated_at?: string | null;
 };
 
-type EmailBrandingState = {
-  brand_name: string;
-  logo_url?: string | null;
-  primary_color: string;
-  button_text_color: string;
-  footer_text?: string | null;
-};
-
 type EmailTemplatesResponse = {
-  branding: EmailBrandingState;
   templates: EmailTemplate[];
 };
 
@@ -36,14 +27,8 @@ type EmailTestResult = { success: boolean; idempotent: boolean; detail?: string 
 
 type EmailTestResponse = EmailTestResult & { logs: EmailTestLog[] };
 
-type WebhookSettingsState = {
-  url?: string | null;
-  secret?: string | null;
-  enabled_events: string[];
-  enabled: boolean;
-};
+const DEFAULT_TEMPLATE_ID = 'user_invitation';
 
-const AVAILABLE_WEBHOOK_EVENTS = ['user.invited', 'user.activated', 'user.suspended'];
 
 const AdminSettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'policy' | 'email'>('policy');
@@ -55,20 +40,16 @@ const AdminSettings: React.FC = () => {
   const [emailCfg, setEmailCfg] = useState<EmailSettings>({ smtp_host: '', smtp_port: 587, username: '', has_password: false, use_tls: true, use_ssl: false, from_name: 'Confianet', from_email: '' });
   const [emailPassword, setEmailPassword] = useState<string>('');
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [branding, setBranding] = useState<EmailBrandingState>({ brand_name: 'Confianet', logo_url: '', primary_color: '#1F2937', button_text_color: '#FFFFFF', footer_text: '' });
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('user_invitation');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(DEFAULT_TEMPLATE_ID);
   const [templateSubject, setTemplateSubject] = useState<string>('');
   const [templateBody, setTemplateBody] = useState<string>('');
   const [templateSaving, setTemplateSaving] = useState(false);
-  const [brandingSaving, setBrandingSaving] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [testEmail, setTestEmail] = useState<string>('');
   const [testSending, setTestSending] = useState(false);
   const [testLogs, setTestLogs] = useState<EmailTestLog[]>([]);
   const [testResult, setTestResult] = useState<EmailTestResult | null>(null);
-  const [webhook, setWebhook] = useState<WebhookSettingsState>({ url: '', secret: '', enabled_events: [...AVAILABLE_WEBHOOK_EVENTS], enabled: false });
-  const [webhookSaving, setWebhookSaving] = useState(false);
 
   useEffect(() => {
     try {
@@ -87,25 +68,16 @@ const AdminSettings: React.FC = () => {
         const tpl = await axios.get<EmailTemplatesResponse>('/api/settings/email/templates');
         const templatesData = tpl as unknown as EmailTemplatesResponse;
         setTemplates(templatesData.templates);
-        setBranding(templatesData.branding);
         if (templatesData.templates.length > 0) {
-          const template = templatesData.templates.find(t => t.id === selectedTemplateId) || templatesData.templates[0];
+          const template = templatesData.templates.find(t => t.id === DEFAULT_TEMPLATE_ID) || templatesData.templates[0];
           setSelectedTemplateId(template.id);
           setTemplateSubject(template.subject_template);
           setTemplateBody(template.body_html);
         } else {
-          setSelectedTemplateId('user_invitation');
+          setSelectedTemplateId(DEFAULT_TEMPLATE_ID);
           setTemplateSubject('');
           setTemplateBody('');
         }
-        const webhookSettings = await axios.get<WebhookSettingsState & { url?: string | null; secret?: string | null }>('/api/settings/webhooks');
-        const whData = webhookSettings as unknown as WebhookSettingsState & { url?: string | null; secret?: string | null };
-        setWebhook({
-          url: whData.url ?? '',
-          secret: whData.secret ?? '',
-          enabled_events: whData.enabled_events?.length ? whData.enabled_events : [...AVAILABLE_WEBHOOK_EVENTS],
-          enabled: whData.enabled,
-        });
       } catch (e: any) {
         setError(e?.message || 'Error cargando configuración');
       } finally {
@@ -204,21 +176,6 @@ const AdminSettings: React.FC = () => {
     }
   };
 
-  const handleBrandingSave = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setBrandingSaving(true);
-    setMessage(null); setError(null);
-    try {
-      const updated = await axios.patch<EmailBrandingState>('/api/settings/email/templates/branding', branding);
-      setBranding(updated as unknown as EmailBrandingState);
-      setMessage('Marca blanca actualizada');
-    } catch (err: any) {
-      setError(err?.message || 'No se pudo actualizar la marca');
-    } finally {
-      setBrandingSaving(false);
-    }
-  };
-
   const handleSendTestEmail = async () => {
     if (!testEmail) {
       setError('Ingresa un correo de destino para la prueba');
@@ -245,42 +202,6 @@ const AdminSettings: React.FC = () => {
       setError(err?.message || 'No se pudo enviar el correo de prueba');
     } finally {
       setTestSending(false);
-    }
-  };
-
-  const toggleWebhookEvent = (eventKey: string, checked: boolean) => {
-    setWebhook(prev => ({
-      ...prev,
-      enabled_events: checked
-        ? Array.from(new Set([...(prev.enabled_events || []), eventKey]))
-        : (prev.enabled_events || []).filter(item => item !== eventKey),
-    }));
-  };
-
-  const handleWebhookSave = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setWebhookSaving(true);
-    setMessage(null); setError(null);
-    try {
-      const payload = {
-        url: webhook.url?.trim() || null,
-        secret: webhook.secret?.trim() || null,
-        enabled_events: webhook.enabled_events,
-        enabled: webhook.enabled,
-      };
-      const saved = await axios.put<WebhookSettingsState & { url?: string | null; secret?: string | null }>('/api/settings/webhooks', payload);
-      const data = saved as unknown as WebhookSettingsState & { url?: string | null; secret?: string | null };
-      setWebhook({
-        url: data.url ?? '',
-        secret: data.secret ?? '',
-        enabled_events: data.enabled_events?.length ? data.enabled_events : [...AVAILABLE_WEBHOOK_EVENTS],
-        enabled: data.enabled,
-      });
-      setMessage('Webhook actualizado');
-    } catch (err: any) {
-      setError(err?.message || 'No se pudo guardar el webhook');
-    } finally {
-      setWebhookSaving(false);
     }
   };
 
@@ -346,7 +267,7 @@ const AdminSettings: React.FC = () => {
                       <Col md={4}>
                         <Label>Plantilla</Label>
                         <Input type="select" value={selectedTemplateId} onChange={e => handleTemplateSelect(e.target.value)}>
-                          {templates.length === 0 && <option value="user_invitation">user_invitation</option>}
+                          {templates.length === 0 && <option value={DEFAULT_TEMPLATE_ID}>{DEFAULT_TEMPLATE_ID}</option>}
                           {templates.map(t => (
                             <option key={t.id} value={t.id}>{t.name}</option>
                           ))}
@@ -435,58 +356,6 @@ const AdminSettings: React.FC = () => {
                         )}
                       </>
                     )}
-                  </CardBody>
-                </Card>
-                <Card className="mt-4">
-                  <CardHeader><h5 className="mb-0">Marca blanca</h5></CardHeader>
-                  <CardBody>
-                    <Form onSubmit={handleBrandingSave}>
-                      <Row className="g-3">
-                        <Col md={4}><Label>Nombre de marca</Label><Input value={branding.brand_name} onChange={e => setBranding(prev => ({ ...prev, brand_name: e.target.value }))} required /></Col>
-                        <Col md={4}><Label>Logo (URL)</Label><Input value={branding.logo_url || ''} onChange={e => setBranding(prev => ({ ...prev, logo_url: e.target.value }))} placeholder="https://..." /></Col>
-                        <Col md={2}><Label>Color principal</Label><Input type="text" value={branding.primary_color} onChange={e => setBranding(prev => ({ ...prev, primary_color: e.target.value }))} /></Col>
-                        <Col md={2}><Label>Color texto botón</Label><Input type="text" value={branding.button_text_color} onChange={e => setBranding(prev => ({ ...prev, button_text_color: e.target.value }))} /></Col>
-                        <Col md={12}><Label>Pie de página</Label><Input type="textarea" rows={2} value={branding.footer_text || ''} onChange={e => setBranding(prev => ({ ...prev, footer_text: e.target.value }))} placeholder="© {{ brand.brand_name }}" /></Col>
-                      </Row>
-                      <Button color="primary" type="submit" className="mt-3" disabled={brandingSaving}>{brandingSaving ? 'Guardando…' : 'Guardar marca'}</Button>
-                    </Form>
-                  </CardBody>
-                </Card>
-                <Card className="mt-4">
-                  <CardHeader><h5 className="mb-0">Webhook de eventos</h5></CardHeader>
-                  <CardBody>
-                    <Form onSubmit={handleWebhookSave}>
-                      <Row className="g-3">
-                        <Col md={6}><Label>URL destino</Label><Input type="url" value={webhook.url || ''} onChange={e => setWebhook(prev => ({ ...prev, url: e.target.value }))} placeholder="https://integracion.example.com/webhook" /></Col>
-                        <Col md={6}><Label>Secreto (opcional)</Label><Input value={webhook.secret || ''} onChange={e => setWebhook(prev => ({ ...prev, secret: e.target.value }))} placeholder="clave para firmar mensajes" /></Col>
-                      </Row>
-                      <Row className="g-3 mt-1">
-                        <Col md={3} className="mt-2">
-                          <FormGroup check>
-                            <Input id="webhook-enabled" type="checkbox" checked={webhook.enabled} onChange={e => setWebhook(prev => ({ ...prev, enabled: e.target.checked }))} />
-                            <Label check htmlFor="webhook-enabled">Webhook activo</Label>
-                          </FormGroup>
-                        </Col>
-                        <Col md={9}>
-                          <Label>Eventos enviados</Label>
-                          <div className="d-flex flex-wrap gap-3">
-                            {AVAILABLE_WEBHOOK_EVENTS.map(eventKey => (
-                              <FormGroup check className="me-3" key={eventKey}>
-                                <Input
-                                  type="checkbox"
-                                  id={`webhook-${eventKey}`}
-                                  checked={webhook.enabled_events.includes(eventKey)}
-                                  onChange={e => toggleWebhookEvent(eventKey, e.target.checked)}
-                                />
-                                <Label check htmlFor={`webhook-${eventKey}`}>{eventKey}</Label>
-                              </FormGroup>
-                            ))}
-                          </div>
-                          <FormText className="text-muted">Se enviará un POST en formato JSON con firma opcional cuando ocurran estos eventos.</FormText>
-                        </Col>
-                      </Row>
-                      <Button color="primary" type="submit" className="mt-3" disabled={webhookSaving}>{webhookSaving ? 'Guardando…' : 'Guardar webhook'}</Button>
-                    </Form>
                   </CardBody>
                 </Card>
               </TabPane>
